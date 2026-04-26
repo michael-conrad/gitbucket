@@ -6,6 +6,7 @@ import gitbucket.core.service.*
 import gitbucket.core.util.Implicits.*
 import gitbucket.core.util.*
 import gitbucket.core.plugin.PluginRegistry
+import org.scalatra.swagger.{Swagger, SwaggerSupport}
 
 class ApiController
     extends ApiControllerBase
@@ -54,9 +55,15 @@ class ApiController
     with ReferrerAuthenticator
     with ReadableUsersAuthenticator
     with WritableUsersAuthenticator
-    with RequestCache
+    with RequestCache {
 
-trait ApiControllerBase extends ControllerBase {
+  override implicit lazy val swagger: Swagger = GitBucketSwagger
+}
+
+trait ApiControllerBase extends ControllerBase with SwaggerSupport {
+
+  override implicit lazy val swagger: Swagger = GitBucketSwagger
+  override protected def applicationDescription: String = "GitBucket API"
 
   /**
    * 404 for non-implemented api
@@ -81,6 +88,7 @@ trait ApiControllerBase extends ControllerBase {
    * https://developer.github.com/v3/#root-endpoint
    */
   get("/api/v3") {
+    apiOperation[ApiEndPoint]("getApiRoot").summary("Root endpoint")
     JsonFormat(ApiEndPoint())
   }
 
