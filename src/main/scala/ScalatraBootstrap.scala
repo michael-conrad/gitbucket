@@ -2,6 +2,7 @@ import java.util.EnumSet
 import javax.servlet._
 
 import gitbucket.core.controller.{ReleaseController, _}
+import gitbucket.core.controller.api.SwaggerResourcesApp
 import gitbucket.core.service.SystemSettingsService
 import gitbucket.core.servlet._
 import gitbucket.core.util.Directory
@@ -38,6 +39,8 @@ class ScalatraBootstrap extends LifeCycle with SystemSettingsService {
       .addMappingForUrlPatterns(EnumSet.allOf(classOf[DispatcherType]), true, "/*")
 
     context.mount(new FileUploadController, "/upload")
+
+    context.mount(new SwaggerResourcesApp, "/api-docs")
 
     val filter = new CompositeScalatraFilter()
     filter.mount(new IndexController, "/")
