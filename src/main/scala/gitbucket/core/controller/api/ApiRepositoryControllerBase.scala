@@ -8,17 +8,18 @@ import gitbucket.core.util._
 import gitbucket.core.util.Implicits._
 import gitbucket.core.model.Profile.profile.blockingApi._
 import org.eclipse.jgit.api.Git
-import org.scalatra.Forbidden
-import org.scalatra.swagger.{ApiResponse, ResponseMessage}
+import org.scalatra.swagger.{ResponseMessage, SwaggerSupport}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 import scala.util.Using
 
-trait ApiRepositoryControllerBase extends ControllerBase {
+trait ApiRepositoryControllerBase extends ControllerBase with SwaggerSupport {
   self: RepositoryService & ApiGitReferenceControllerBase & RepositoryCreationService & AccountService &
     OwnerAuthenticator & UsersAuthenticator & GroupManagerAuthenticator & ReferrerAuthenticator &
     ReadableUsersAuthenticator & WritableUsersAuthenticator =>
+
+  override protected def applicationDescription: String = "GitBucket Repository API"
 
   /**
    * i. List your repositories
@@ -28,10 +29,12 @@ trait ApiRepositoryControllerBase extends ControllerBase {
     apiOperation[List[ApiRepository]]("listUserRepositories")
       .summary("List your repositories")
       .description("List repositories for the authenticated user. Includes public and private repositories based on visibility.")
-      .queryParam[String]("visibility").description("Filter by visibility (public, private, all)").optional
-      .queryParam[String]("affiliation").description("Filter by affiliation (owner, collaborator, organization_member)").optional
-      .queryParam[String]("sort").description("Sort by (created, updated, pushed, full_name)").optional
-      .queryParam[String]("direction").description("Sort direction (asc, desc)").optional
+      .parameters(
+        queryParam[String]("visibility").description("Filter by visibility (public, private, all)").optional,
+        queryParam[String]("affiliation").description("Filter by affiliation (owner, collaborator, organization_member)").optional,
+        queryParam[String]("sort").description("Sort by (created, updated, pushed, full_name)").optional,
+        queryParam[String]("direction").description("Sort direction (asc, desc)").optional
+      )
       .responseMessages(
         ResponseMessage(200, "Success"),
         ResponseMessage(401, "Unauthorized")
@@ -49,10 +52,12 @@ trait ApiRepositoryControllerBase extends ControllerBase {
     apiOperation[List[ApiRepository]]("listUserRepositoriesByUsername")
       .summary("List user repositories")
       .description("List public repositories for a user.")
-      .pathParam[String]("userName").description("Username to list repositories for")
-      .queryParam[String]("type").description("Filter by type (owner, member)").optional
-      .queryParam[String]("sort").description("Sort by (created, updated, pushed, full_name)").optional
-      .queryParam[String]("direction").description("Sort direction (asc, desc)").optional
+      .parameters(
+        pathParam[String]("userName").description("Username to list repositories for"),
+        queryParam[String]("type").description("Filter by type (owner, member)").optional,
+        queryParam[String]("sort").description("Sort by (created, updated, pushed, full_name)").optional,
+        queryParam[String]("direction").description("Sort direction (asc, desc)").optional
+      )
       .responseMessages(
         ResponseMessage(200, "Success"),
         ResponseMessage(404, "User not found")
@@ -70,10 +75,12 @@ trait ApiRepositoryControllerBase extends ControllerBase {
     apiOperation[List[ApiRepository]]("listOrganizationRepositories")
       .summary("List organization repositories")
       .description("List repositories for an organization. Access depends on user's membership and visibility permissions.")
-      .pathParam[String]("orgName").description("Organization name")
-      .queryParam[String]("type").description("Filter by type (all, public, private, forks, sources, member)").optional
-      .queryParam[String]("sort").description("Sort by (created, updated, pushed, full_name)").optional
-      .queryParam[String]("direction").description("Sort direction (asc, desc)").optional
+      .parameters(
+        pathParam[String]("orgName").description("Organization name"),
+        queryParam[String]("type").description("Filter by type (all, public, private, forks, sources, member)").optional,
+        queryParam[String]("sort").description("Sort by (created, updated, pushed, full_name)").optional,
+        queryParam[String]("direction").description("Sort direction (asc, desc)").optional
+      )
       .responseMessages(
         ResponseMessage(200, "Success"),
         ResponseMessage(404, "Organization not found"),
@@ -92,7 +99,9 @@ trait ApiRepositoryControllerBase extends ControllerBase {
     apiOperation[List[ApiRepository]]("listAllPublicRepositories")
       .summary("List all public repositories")
       .description("List all public repositories on the instance, sorted by creation date.")
-      .queryParam[Int]("since").description("Only show repositories with id greater than this value").optional
+      .parameters(
+        queryParam[Int]("since").description("Only show repositories with id greater than this value").optional
+      )
       .responseMessages(
         ResponseMessage(200, "Success")
       )
@@ -114,7 +123,9 @@ trait ApiRepositoryControllerBase extends ControllerBase {
     apiOperation[ApiRepository]("createUserRepository")
       .summary("Create a repository for the authenticated user")
       .description("Create a new repository for the authenticated user. Requires authentication.")
-      .bodyParam[CreateARepository]("body").description("Repository creation data including name, description, private flag, auto_init")
+      .parameters(
+        bodyParam[CreateARepository]("body").description("Repository creation data including name, description, private flag, auto_init")
+      )
       .responseMessages(
         ResponseMessage(201, "Repository created"),
         ResponseMessage(401, "Unauthorized"),
@@ -159,8 +170,10 @@ trait ApiRepositoryControllerBase extends ControllerBase {
     apiOperation[ApiRepository]("createOrganizationRepository")
       .summary("Create an organization repository")
       .description("Create a new repository for an organization. Requires authentication and organization membership permissions.")
-      .pathParam[String]("org").description("Organization name")
-      .bodyParam[CreateARepository]("body").description("Repository creation data including name, description, private flag, auto_init")
+      .parameters(
+        pathParam[String]("org").description("Organization name"),
+        bodyParam[CreateARepository]("body").description("Repository creation data including name, description, private flag, auto_init")
+      )
       .responseMessages(
         ResponseMessage(201, "Repository created"),
         ResponseMessage(401, "Unauthorized"),
@@ -178,7 +191,7 @@ trait ApiRepositoryControllerBase extends ControllerBase {
             Some("https://developer.github.com/v3/repos/#create")
           )
         } else if (!canCreateRepository(groupName, context.loginAccount.get)) {
-          Forbidden()
+          org.scalatra.Forbidden()
         } else {
           val f = createRepository(
             context.loginAccount.get,
@@ -207,8 +220,10 @@ trait ApiRepositoryControllerBase extends ControllerBase {
     apiOperation[ApiRepository]("getRepository")
       .summary("Get a repository")
       .description("Get details of a single repository. Requires read access.")
-      .pathParam[String]("owner").description("Repository owner")
-      .pathParam[String]("repository").description("Repository name")
+      .parameters(
+        pathParam[String]("owner").description("Repository owner"),
+        pathParam[String]("repository").description("Repository name")
+      )
       .responseMessages(
         ResponseMessage(200, "Success"),
         ResponseMessage(404, "Repository not found")
@@ -254,8 +269,10 @@ trait ApiRepositoryControllerBase extends ControllerBase {
     apiOperation[List[ApiTag]]("listRepositoryTags")
       .summary("List repository tags")
       .description("List tags for a repository. Returns tag name and commit SHA.")
-      .pathParam[String]("owner").description("Repository owner")
-      .pathParam[String]("repository").description("Repository name")
+      .parameters(
+        pathParam[String]("owner").description("Repository owner"),
+        pathParam[String]("repository").description("Repository name")
+      )
       .responseMessages(
         ResponseMessage(200, "Success"),
         ResponseMessage(404, "Repository not found")
@@ -284,10 +301,12 @@ trait ApiRepositoryControllerBase extends ControllerBase {
     apiOperation[Array[Byte]]("getRepositoryRawFile")
       .summary("Get raw file content from repository")
       .description("Get raw file content from a repository at a specific commit. Non-GitHub compatible API for Jenkins plugin.")
-      .pathParam[String]("owner").description("Repository owner")
-      .pathParam[String]("repository").description("Repository name")
-      .pathParam[String]("path").description("File path within repository")
-      .queryParam[String]("ref").description("Commit SHA, branch, or tag to retrieve file from").optional
+      .parameters(
+        pathParam[String]("owner").description("Repository owner"),
+        pathParam[String]("repository").description("Repository name"),
+        pathParam[String]("path").description("File path within repository"),
+        queryParam[String]("ref").description("Commit SHA, branch, or tag to retrieve file from").optional
+      )
       .responseMessages(
         ResponseMessage(200, "Success"),
         ResponseMessage(404, "File or repository not found")

@@ -6,10 +6,12 @@ import gitbucket.core.util.{AdminAuthenticator, UsersAuthenticator}
 import gitbucket.core.util.Implicits._
 import gitbucket.core.util.StringUtil._
 import org.scalatra.NoContent
-import org.scalatra.swagger.{ApiResponse, ResponseMessage}
+import org.scalatra.swagger.{ResponseMessage, SwaggerSupport}
 
-trait ApiUserControllerBase extends ControllerBase {
+trait ApiUserControllerBase extends ControllerBase with SwaggerSupport {
   self: RepositoryService & AccountService & AdminAuthenticator & UsersAuthenticator =>
+
+  override protected def applicationDescription: String = "GitBucket User API"
 
   /**
    * i. Get a single user
@@ -20,7 +22,9 @@ trait ApiUserControllerBase extends ControllerBase {
     apiOperation[ApiUser]("getUserByUsername")
       .summary("Get a single user")
       .description("Get public information about a user by username. Also returns group information.")
-      .pathParam[String]("userName").description("Username to retrieve")
+      .parameters(
+        pathParam[String]("userName").description("Username to retrieve")
+      )
       .responseMessages(
         ResponseMessage(200, "Success"),
         ResponseMessage(404, "User not found")
@@ -55,7 +59,9 @@ trait ApiUserControllerBase extends ControllerBase {
     apiOperation[ApiUser]("updateAuthenticatedUser")
       .summary("Update the authenticated user")
       .description("Update the authenticated user's profile. Requires authentication.")
-      .bodyParam[UpdateAUser]("body").description("User update data including email, full name, description, URL")
+      .parameters(
+        bodyParam[UpdateAUser]("body").description("User update data including email, full name, description, URL")
+      )
       .responseMessages(
         ResponseMessage(200, "User updated"),
         ResponseMessage(401, "Unauthorized"),
@@ -86,8 +92,10 @@ trait ApiUserControllerBase extends ControllerBase {
     apiOperation[List[ApiUser]]("getAllUsers")
       .summary("Get all users")
       .description("List all users on the instance. Can filter by account type.")
-      .queryParam[Boolean]("admin").description("Filter by admin status").optional
-      .queryParam[Boolean]("suspended").description("Filter by suspended status").optional
+      .parameters(
+        queryParam[Boolean]("admin").description("Filter by admin status").optional,
+        queryParam[Boolean]("suspended").description("Filter by suspended status").optional
+      )
       .responseMessages(
         ResponseMessage(200, "Success")
       )

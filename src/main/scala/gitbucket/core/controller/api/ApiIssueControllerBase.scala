@@ -7,11 +7,13 @@ import gitbucket.core.service.IssuesService.IssueSearchCondition
 import gitbucket.core.service.PullRequestService.PullRequestLimit
 import gitbucket.core.util.{ReadableUsersAuthenticator, ReferrerAuthenticator, RepositoryName}
 import gitbucket.core.util.Implicits._
-import org.scalatra.swagger.{ApiResponse, ResponseMessage}
+import org.scalatra.swagger.{ResponseMessage, SwaggerSupport}
 
-trait ApiIssueControllerBase extends ControllerBase {
+trait ApiIssueControllerBase extends ControllerBase with SwaggerSupport {
   self: AccountService & IssuesService & IssueCreationService & MilestonesService & ReadableUsersAuthenticator &
     ReferrerAuthenticator =>
+
+  override protected def applicationDescription: String = "GitBucket Issue API"
   /*
    * i. List issues
    * https://developer.github.com/v3/issues/#list-issues
@@ -26,12 +28,14 @@ trait ApiIssueControllerBase extends ControllerBase {
     apiOperation[List[ApiIssue]]("listIssuesForRepository")
       .summary("List issues for a repository")
       .description("List all issues for a repository. Supports filtering by state, labels, milestone, and assignee.")
-      .pathParam[String]("owner").description("Repository owner")
-      .pathParam[String]("repository").description("Repository name")
-      .queryParam[String]("state").description("Filter by state (open, closed, all)").optional
-      .queryParam[String]("labels").description("Filter by labels").optional
-      .queryParam[Int]("page").description("Page number").optional
-      .queryParam[Int]("per_page").description("Results per page").optional
+      .parameters(
+        pathParam[String]("owner").description("Repository owner"),
+        pathParam[String]("repository").description("Repository name"),
+        queryParam[String]("state").description("Filter by state (open, closed, all)").optional,
+        queryParam[String]("labels").description("Filter by labels").optional,
+        queryParam[Int]("page").description("Page number").optional,
+        queryParam[Int]("per_page").description("Results per page").optional
+      )
       .responseMessages(
         ResponseMessage(200, "Success"),
         ResponseMessage(404, "Repository not found")
@@ -70,9 +74,11 @@ trait ApiIssueControllerBase extends ControllerBase {
     apiOperation[ApiIssue]("getIssue")
       .summary("Get a single issue")
       .description("Get details of a single issue by issue ID.")
-      .pathParam[String]("owner").description("Repository owner")
-      .pathParam[String]("repository").description("Repository name")
-      .pathParam[Int]("id").description("Issue ID")
+      .parameters(
+        pathParam[String]("owner").description("Repository owner"),
+        pathParam[String]("repository").description("Repository name"),
+        pathParam[Int]("id").description("Issue ID")
+      )
       .responseMessages(
         ResponseMessage(200, "Success"),
         ResponseMessage(404, "Issue not found")
@@ -105,9 +111,11 @@ trait ApiIssueControllerBase extends ControllerBase {
     apiOperation[ApiIssue]("createIssue")
       .summary("Create an issue")
       .description("Create a new issue in a repository. Requires authentication.")
-      .pathParam[String]("owner").description("Repository owner")
-      .pathParam[String]("repository").description("Repository name")
-      .bodyParam[CreateAnIssue]("body").description("Issue creation data including title, body, assignees, labels, milestone")
+      .parameters(
+        pathParam[String]("owner").description("Repository owner"),
+        pathParam[String]("repository").description("Repository name"),
+        bodyParam[CreateAnIssue]("body").description("Issue creation data including title, body, assignees, labels, milestone")
+      )
       .responseMessages(
         ResponseMessage(201, "Issue created"),
         ResponseMessage(401, "Unauthorized"),
