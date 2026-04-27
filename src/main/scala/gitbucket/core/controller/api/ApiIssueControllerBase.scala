@@ -7,6 +7,7 @@ import gitbucket.core.service.IssuesService.IssueSearchCondition
 import gitbucket.core.service.PullRequestService.PullRequestLimit
 import gitbucket.core.util.{ReadableUsersAuthenticator, ReferrerAuthenticator, RepositoryName}
 import gitbucket.core.util.Implicits._
+import org.scalatra.swagger.{ApiResponse, ResponseMessage}
 
 trait ApiIssueControllerBase extends ControllerBase {
   self: AccountService & IssuesService & IssueCreationService & MilestonesService & ReadableUsersAuthenticator &
@@ -22,6 +23,19 @@ trait ApiIssueControllerBase extends ControllerBase {
    * https://developer.github.com/v3/issues/#list-issues-for-a-repository
    */
   get("/api/v3/repos/:owner/:repository/issues")(referrersOnly { repository =>
+    apiOperation[List[ApiIssue]]("listIssuesForRepository")
+      .summary("List issues for a repository")
+      .description("List all issues for a repository. Supports filtering by state, labels, milestone, and assignee.")
+      .pathParam[String]("owner").description("Repository owner")
+      .pathParam[String]("repository").description("Repository name")
+      .queryParam[String]("state").description("Filter by state (open, closed, all)").optional
+      .queryParam[String]("labels").description("Filter by labels").optional
+      .queryParam[Int]("page").description("Page number").optional
+      .queryParam[Int]("per_page").description("Results per page").optional
+      .responseMessages(
+        ResponseMessage(200, "Success"),
+        ResponseMessage(404, "Repository not found")
+      )
     val page = IssueSearchCondition.page(request)
     // TODO: more api spec condition
     val condition = IssueSearchCondition(request)
@@ -53,6 +67,16 @@ trait ApiIssueControllerBase extends ControllerBase {
    * https://developer.github.com/v3/issues/#get-a-single-issue
    */
   get("/api/v3/repos/:owner/:repository/issues/:id")(referrersOnly { repository =>
+    apiOperation[ApiIssue]("getIssue")
+      .summary("Get a single issue")
+      .description("Get details of a single issue by issue ID.")
+      .pathParam[String]("owner").description("Repository owner")
+      .pathParam[String]("repository").description("Repository name")
+      .pathParam[Int]("id").description("Issue ID")
+      .responseMessages(
+        ResponseMessage(200, "Success"),
+        ResponseMessage(404, "Issue not found")
+      )
     (for {
       issueId <- params("id").toIntOpt
       issue <- getIssue(repository.owner, repository.name, issueId.toString)
@@ -78,6 +102,17 @@ trait ApiIssueControllerBase extends ControllerBase {
    * https://developer.github.com/v3/issues/#create-an-issue
    */
   post("/api/v3/repos/:owner/:repository/issues")(readableUsersOnly { repository =>
+    apiOperation[ApiIssue]("createIssue")
+      .summary("Create an issue")
+      .description("Create a new issue in a repository. Requires authentication.")
+      .pathParam[String]("owner").description("Repository owner")
+      .pathParam[String]("repository").description("Repository name")
+      .bodyParam[CreateAnIssue]("body").description("Issue creation data including title, body, assignees, labels, milestone")
+      .responseMessages(
+        ResponseMessage(201, "Issue created"),
+        ResponseMessage(401, "Unauthorized"),
+        ResponseMessage(404, "Repository not found")
+      )
     if (isIssueEditable(repository)) { // TODO Should this check is provided by authenticator?
       (for {
         data <- extractFromJsonBody[CreateAnIssue]

@@ -6,6 +6,7 @@ import gitbucket.core.util.{AdminAuthenticator, UsersAuthenticator}
 import gitbucket.core.util.Implicits._
 import gitbucket.core.util.StringUtil._
 import org.scalatra.NoContent
+import org.scalatra.swagger.{ApiResponse, ResponseMessage}
 
 trait ApiUserControllerBase extends ControllerBase {
   self: RepositoryService & AccountService & AdminAuthenticator & UsersAuthenticator =>
@@ -16,6 +17,14 @@ trait ApiUserControllerBase extends ControllerBase {
    * This API also returns group information (as GitHub).
    */
   get("/api/v3/users/:userName") {
+    apiOperation[ApiUser]("getUserByUsername")
+      .summary("Get a single user")
+      .description("Get public information about a user by username. Also returns group information.")
+      .pathParam[String]("userName").description("Username to retrieve")
+      .responseMessages(
+        ResponseMessage(200, "Success"),
+        ResponseMessage(404, "User not found")
+      )
     getAccountByUserName(params("userName")).map { account =>
       JsonFormat(ApiUser(account))
     } getOrElse NotFound()
@@ -26,6 +35,13 @@ trait ApiUserControllerBase extends ControllerBase {
    * https://developer.github.com/v3/users/#get-the-authenticated-user
    */
   get("/api/v3/user") {
+    apiOperation[ApiUser]("getAuthenticatedUser")
+      .summary("Get the authenticated user")
+      .description("Get public and private information about the authenticated user. Requires authentication.")
+      .responseMessages(
+        ResponseMessage(200, "Success"),
+        ResponseMessage(401, "Unauthorized")
+      )
     context.loginAccount.map { account =>
       JsonFormat(ApiUser(account))
     } getOrElse Unauthorized()
@@ -36,6 +52,15 @@ trait ApiUserControllerBase extends ControllerBase {
    * https://developer.github.com/v3/users/#update-the-authenticated-user
    */
   patch("/api/v3/user")(usersOnly {
+    apiOperation[ApiUser]("updateAuthenticatedUser")
+      .summary("Update the authenticated user")
+      .description("Update the authenticated user's profile. Requires authentication.")
+      .bodyParam[UpdateAUser]("body").description("User update data including email, full name, description, URL")
+      .responseMessages(
+        ResponseMessage(200, "User updated"),
+        ResponseMessage(401, "Unauthorized"),
+        ResponseMessage(422, "Invalid user data")
+      )
     (for {
       data <- extractFromJsonBody[UpdateAUser]
     } yield {
@@ -58,6 +83,14 @@ trait ApiUserControllerBase extends ControllerBase {
    * https://developer.github.com/v3/users/#get-all-users
    */
   get("/api/v3/users") {
+    apiOperation[List[ApiUser]]("getAllUsers")
+      .summary("Get all users")
+      .description("List all users on the instance. Can filter by account type.")
+      .queryParam[Boolean]("admin").description("Filter by admin status").optional
+      .queryParam[Boolean]("suspended").description("Filter by suspended status").optional
+      .responseMessages(
+        ResponseMessage(200, "Success")
+      )
     JsonFormat(getAllUsers(false, false).map(a => ApiUser(a)))
   }
 
