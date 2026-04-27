@@ -2,18 +2,29 @@ import java.util.EnumSet
 import javax.servlet._
 
 import gitbucket.core.controller.{ReleaseController, _}
-import gitbucket.core.controller.api.SwaggerResourcesApp
+import gitbucket.core.controller.api.{GitBucketSwagger, SwaggerResourcesApp}
 import gitbucket.core.service.SystemSettingsService
 import gitbucket.core.servlet._
 import gitbucket.core.util.Directory
 import org.scalatra._
+import org.slf4j.LoggerFactory
 
 class ScalatraBootstrap extends LifeCycle with SystemSettingsService {
+  private val logger = LoggerFactory.getLogger(classOf[ScalatraBootstrap])
+
   override def init(context: ServletContext): Unit = {
 
     val settings = loadSystemSettings()
     if (settings.baseUrl.exists(_.startsWith("https://"))) {
       context.getSessionCookieConfig.setSecure(true)
+    }
+
+    try {
+      GitBucketSwagger.registerResource("api", "/api/v3")
+      logger.info("Swagger resource registration check completed")
+    } catch {
+      case e: Exception =>
+        logger.warn(s"Swagger resource registration check failed: ${e.getMessage}", e)
     }
 
     // Register TransactionFilter at first

@@ -7,6 +7,7 @@ import gitbucket.core.util.Implicits.*
 import gitbucket.core.util.*
 import gitbucket.core.plugin.PluginRegistry
 import org.scalatra.swagger.{Swagger, SwaggerSupport}
+import org.slf4j.LoggerFactory
 
 class ApiController
     extends ApiControllerBase
@@ -62,8 +63,30 @@ class ApiController
 
 trait ApiControllerBase extends ControllerBase with SwaggerSupport {
 
+  private val swaggerLogger = LoggerFactory.getLogger(classOf[ApiControllerBase])
+
   override implicit lazy val swagger: Swagger = GitBucketSwagger
   override protected def applicationDescription: String = "GitBucket API"
+
+  override def initialize(config: ConfigT): Unit = {
+    swaggerLogger.info("Swagger initialize: registering manually (CompositeScalatraFilter does not provide servlet registration)")
+    try {
+      swagger.register(
+        "api",
+        "/api/v3",
+        Some(applicationDescription),
+        this,
+        swaggerConsumes,
+        swaggerProduces,
+        swaggerProtocols,
+        swaggerAuthorizations
+      )
+      swaggerLogger.info("Swagger manual registration succeeded for ApiControllerBase")
+    } catch {
+      case e: Exception =>
+        swaggerLogger.warn(s"Swagger manual registration failed: ${e.getMessage}", e)
+    }
+  }
 
   /**
    * 404 for non-implemented api
