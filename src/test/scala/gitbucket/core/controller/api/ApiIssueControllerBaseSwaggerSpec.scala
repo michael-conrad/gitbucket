@@ -1,3 +1,5 @@
+// Co-authored with AI: OpenCode (ollama-cloud/glm-5.1)
+
 package gitbucket.core.controller.api
 
 import org.json4s.jackson.JsonMethods
