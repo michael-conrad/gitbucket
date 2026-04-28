@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Michael Conrad
 // SPDX-License-Identifier: Apache-2.0
-// Co-authored with AI: OpenCode (ollama-cloud/glm-5.1)
+// Co-authored with AI: OpenCode (ollama-cloud/kimi-k2.6:cloud), OpenCode (ollama-cloud/glm-5.1)
 
 package gitbucket.core.controller.api
 

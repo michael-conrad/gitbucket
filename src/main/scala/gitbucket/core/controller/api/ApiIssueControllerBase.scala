@@ -1,3 +1,5 @@
+// Co-authored with AI: OpenCode (ollama-cloud/glm-5.1)
+
 package gitbucket.core.controller.api
 import gitbucket.core.api._
 import gitbucket.core.controller.ControllerBase
