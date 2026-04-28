@@ -69,7 +69,22 @@ trait ApiControllerBase extends ControllerBase with SwaggerSupport {
   override protected def applicationDescription: String = "GitBucket API"
 
   override def initialize(config: ConfigT): Unit = {
-    swaggerLogger.info("Swagger initialize: registering manually (CompositeScalatraFilter does not provide servlet registration)")
+    // super.initialize runs the full Scalatra init chain: sets this.config
+    // (fixes CorsSupport NPE), seeds CorsConfigKey, etc. It also routes
+    // through SwaggerSupportSyntax.initialize, which throws
+    // IllegalStateException under CompositeScalatraFilter because it cannot
+    // resolve the servlet registration. That exception is caught and
+    // printed to System.err by scalatra-swagger itself — it never
+    // propagates. The trace is expected and harmless; /api/v3 is
+    // registered manually below. See doc/swagger/cors-init-npe.md.
+    System.err.println(
+      "[gitbucket] expected scalatra-swagger init trace follows — see doc/swagger/cors-init-npe.md"
+    )
+    super.initialize(config)
+    System.err.println(
+      "[gitbucket] end expected scalatra-swagger init trace"
+    )
+
     try {
       swagger.register(
         "api",
