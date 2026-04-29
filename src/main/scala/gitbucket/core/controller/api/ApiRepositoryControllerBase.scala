@@ -9,6 +9,8 @@ import gitbucket.core.util.Implicits._
 import gitbucket.core.model.Profile.profile.blockingApi._
 import org.eclipse.jgit.api.Git
 import org.scalatra.Forbidden
+import org.scalatra.swagger.{ResponseMessage, Swagger, SwaggerSupport}
+import org.scalatra.swagger.SwaggerSupportSyntax._
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
@@ -17,13 +19,100 @@ import scala.util.Using
 trait ApiRepositoryControllerBase extends ControllerBase {
   self: RepositoryService & ApiGitReferenceControllerBase & RepositoryCreationService & AccountService &
     OwnerAuthenticator & UsersAuthenticator & GroupManagerAuthenticator & ReferrerAuthenticator &
-    ReadableUsersAuthenticator & WritableUsersAuthenticator =>
+    ReadableUsersAuthenticator & WritableUsersAuthenticator & SwaggerSupport =>
+
+  val listUserReposOp =
+    apiOperation[List[ApiRepository]]("listUserRepos")
+      .summary("List repositories for the authenticated user")
+      .description("Lists repositories that the authenticated user has explicit permission to access")
+      .responseMessages(ResponseMessage(401, "Unauthorized"))
+
+  val listReposForUserOp =
+    apiOperation[List[ApiRepository]]("listReposForUser")
+      .summary("List repositories for a user")
+      .description("Lists public repositories for the specified user")
+      .parameters(
+        pathParam[String]("userName").description("Username")
+      )
+      .responseMessages(ResponseMessage(404, "User not found"))
+
+  val listReposForOrgOp =
+    apiOperation[List[ApiRepository]]("listReposForOrg")
+      .summary("List repositories for an organization")
+      .description("Lists repositories for the specified organization")
+      .parameters(
+        pathParam[String]("orgName").description("Organization name")
+      )
+      .responseMessages(ResponseMessage(404, "Organization not found"))
+
+  val listPublicReposOp =
+    apiOperation[List[ApiRepository]]("listPublicRepos")
+      .summary("List public repositories")
+      .description("Lists all public repositories on the instance")
+
+  val createUserRepoOp =
+    apiOperation[ApiRepository]("createUserRepo")
+      .summary("Create a repository for the authenticated user")
+      .description("Creates a new repository for the authenticated user")
+      .parameters(
+        bodyParam[CreateARepository]("body").description("Repository creation parameters")
+      )
+      .responseMessages(
+        ResponseMessage(401, "Unauthorized"),
+        ResponseMessage(422, "Validation failed")
+      )
+
+  val createOrgRepoOp =
+    apiOperation[ApiRepository]("createOrgRepo")
+      .summary("Create an organization repository")
+      .description("Creates a new repository in the specified organization")
+      .parameters(
+        pathParam[String]("org").description("Organization name"),
+        bodyParam[CreateARepository]("body").description("Repository creation parameters")
+      )
+      .responseMessages(
+        ResponseMessage(401, "Unauthorized"),
+        ResponseMessage(403, "Forbidden"),
+        ResponseMessage(404, "Organization not found"),
+        ResponseMessage(422, "Validation failed")
+      )
+
+  val getRepoOp =
+    apiOperation[ApiRepository]("getRepo")
+      .summary("Get a repository")
+      .description("Returns the specified repository")
+      .parameters(
+        pathParam[String]("owner").description("Repository owner"),
+        pathParam[String]("repository").description("Repository name")
+      )
+      .responseMessages(ResponseMessage(404, "Repository not found"))
+
+  val listRepoTagsOp =
+    apiOperation[List[ApiTag]]("listRepoTags")
+      .summary("List repository tags")
+      .description("Returns a list of tags for the specified repository")
+      .parameters(
+        pathParam[String]("owner").description("Repository owner"),
+        pathParam[String]("repository").description("Repository name")
+      )
+      .responseMessages(ResponseMessage(404, "Repository not found"))
+
+  val getRawFileOp =
+    apiOperation[Unit]("getRawFile")
+      .summary("Get raw file content")
+      .description("Returns the raw content of a file in a repository")
+      .parameters(
+        pathParam[String]("owner").description("Repository owner"),
+        pathParam[String]("repository").description("Repository name"),
+        pathParam[String]("splat").description("Path including git reference and file path")
+      )
+      .responseMessages(ResponseMessage(404, "File or repository not found"))
 
   /**
    * i. List your repositories
    * https://docs.github.com/en/rest/reference/repos#list-repositories-for-the-authenticated-user
    */
-  get("/api/v3/user/repos")(usersOnly {
+  get("/user/repos", operation(listUserReposOp))(usersOnly {
     JsonFormat(getVisibleRepositories(context.loginAccount, Option(context.loginAccount.get.userName)).map { r =>
       ApiRepository(r, getAccountByUserName(r.owner).get)
     })
@@ -33,7 +122,7 @@ trait ApiRepositoryControllerBase extends ControllerBase {
    * ii. List user repositories
    * https://docs.github.com/en/rest/reference/repos#list-repositories-for-a-user
    */
-  get("/api/v3/users/:userName/repos") {
+  get("/users/:userName/repos", operation(listReposForUserOp)) {
     JsonFormat(getVisibleRepositories(context.loginAccount, Some(params("userName"))).map { r =>
       ApiRepository(r, getAccountByUserName(r.owner).get)
     })
@@ -43,7 +132,7 @@ trait ApiRepositoryControllerBase extends ControllerBase {
    * iii. List organization repositories
    * https://docs.github.com/en/rest/reference/repos#list-organization-repositories
    */
-  get("/api/v3/orgs/:orgName/repos") {
+  get("/orgs/:orgName/repos", operation(listReposForOrgOp)) {
     JsonFormat(getVisibleRepositories(context.loginAccount, Some(params("orgName"))).map { r =>
       ApiRepository(r, getAccountByUserName(r.owner).get)
     })
@@ -53,7 +142,7 @@ trait ApiRepositoryControllerBase extends ControllerBase {
    * iv. List all public repositories
    * https://docs.github.com/en/rest/reference/repos#list-public-repositories
    */
-  get("/api/v3/repositories") {
+  get("/repositories", operation(listPublicReposOp)) {
     JsonFormat(getPublicRepositories().map { r =>
       ApiRepository(r, getAccountByUserName(r.owner).get)
     })
@@ -68,7 +157,7 @@ trait ApiRepositoryControllerBase extends ControllerBase {
    * Create user repository
    * https://docs.github.com/en/rest/reference/repos#create-a-repository-for-the-authenticated-user
    */
-  post("/api/v3/user/repos")(usersOnly {
+  post("/user/repos", operation(createUserRepoOp))(usersOnly {
     val owner = context.loginAccount.get.userName
     (for {
       data <- extractFromJsonBody[CreateARepository] if data.isValid
@@ -104,7 +193,7 @@ trait ApiRepositoryControllerBase extends ControllerBase {
    * Create group repository
    * https://docs.github.com/en/rest/reference/repos#create-an-organization-repository
    */
-  post("/api/v3/orgs/:org/repos")(usersOnly {
+  post("/orgs/:org/repos", operation(createOrgRepoOp))(usersOnly {
     val groupName = params("org")
     (for {
       data <- extractFromJsonBody[CreateARepository] if data.isValid
@@ -141,7 +230,7 @@ trait ApiRepositoryControllerBase extends ControllerBase {
    * vi. Get
    * https://docs.github.com/en/rest/reference/repos#get-a-repository
    */
-  get("/api/v3/repos/:owner/:repository")(referrersOnly { repository =>
+  get("/repos/:owner/:repository", operation(getRepoOp))(referrersOnly { repository =>
     JsonFormat(ApiRepository(repository, ApiUser(getAccountByUserName(repository.owner).get)))
   })
 
@@ -179,7 +268,7 @@ trait ApiRepositoryControllerBase extends ControllerBase {
    * xiii. List repository tags
    * https://docs.github.com/en/rest/reference/repos#list-repository-tags
    */
-  get("/api/v3/repos/:owner/:repository/tags")(referrersOnly { repository =>
+  get("/repos/:owner/:repository/tags", operation(listRepoTagsOp))(referrersOnly { repository =>
     Using.resource(Git.open(getRepositoryDir(repository.owner, repository.name))) { git =>
       JsonFormat(
         repository.tags.map(tagInfo => ApiTag(tagInfo.name, RepositoryName(repository), tagInfo.commitId))
@@ -200,7 +289,7 @@ trait ApiRepositoryControllerBase extends ControllerBase {
   /**
    * non-GitHub compatible API for Jenkins-Plugin
    */
-  get("/api/v3/repos/:owner/:repository/raw/*")(referrersOnly { repository =>
+  get("/repos/:owner/:repository/raw/*", operation(getRawFileOp))(referrersOnly { repository =>
     val (id, path) = repository.splitPath(multiParams("splat").head)
     Using.resource(Git.open(getRepositoryDir(repository.owner, repository.name))) { git =>
       val revCommit = JGitUtil.getRevCommitFromId(git, git.getRepository.resolve(id))
