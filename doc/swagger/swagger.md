@@ -457,6 +457,13 @@ Notes on the table:
   That is expected for unannotated endpoints; what must **not**
   change between pre and post is whether the runtime call to that
   endpoint still works (covered by F9).
+- **jq false-positive trap:** `jq` renders absent JSON keys as
+  `null`. Do not use `jq '{keyName, ...}'` to check whether a key
+  exists — it fabricates the appearance of an explicit `null`
+  value where the key is simply absent. Use `has("keyName")` to
+  check presence (returns `true`/`false`), or `.keyName // "ABSENT"`
+  to make absence explicit in the output. See GitHub #54 for the
+  `basePath` false-positive that triggered this rule.
 
 ### If the pre-implementation snapshot reveals a pre-existing API bug
 
@@ -501,7 +508,33 @@ When that happens, follow this workflow strictly:
      trade-offs. Explicitly mark them as *unverified proposals*.
      Do not implement any of them.
    - **Status** — `Open — awaiting human review`.
-4. **Move on to the next endpoint that needs annotation.** Pick
+4. **Also file a remote issue ticket** on the GitHub repository's
+   issues API for the same bug. The remote ticket must contain a
+   **triage-ready quick-read overview** with salient points for
+   a developer who has not read the full `doc/swagger/bugs/`
+   report. Required structure:
+
+   ```
+   ## Triage Overview
+
+   **Impact:** <1-2 sentences — who is affected and how>
+
+   **Reproduction:** <single curl command + observed vs expected>
+
+   **Scope:** <which endpoints/paths; auth-dependent? clean-home?>
+
+   **Suspected location:** <file:line, with "unverified hypothesis">
+
+   **Full report:** `doc/swagger/bugs/<filename>.md`
+   ```
+
+   The remote ticket must also:
+   - Link to the `doc/swagger/bugs/` report for full details
+   - Carry the `bug` label
+   - NOT include the full bug report body (that lives in
+     `doc/swagger/bugs/`); the remote ticket is a triage pointer,
+     not a duplicate
+5. **Move on to the next endpoint that needs annotation.** Pick
    the next `Api*ControllerBase` route from the annotation backlog
    and run the section 6 / section 7 loop against it. Do **not**
    gate annotation work on the filed bug being resolved unless
@@ -509,18 +542,18 @@ When that happens, follow this workflow strictly:
    that case, the pipeline regression has to be fixed first,
    because every annotation test downstream of it would be a false
    negative (see section 6, "TDD ground rules").
-5. **Reference the bug from your annotation PR.** In the PR
-   description, list any `doc/swagger/bugs/*.md` reports that
-   were filed during the pre-implementation snapshot so reviewers
-   can see the baseline failures are known and out of scope for
-   this PR.
+6. **Reference the bug from your annotation PR.** In the PR
+   description, list any `doc/swagger/bugs/*.md` reports and
+   remote issue tickets that were filed during the pre-implementation
+   snapshot so reviewers can see the baseline failures are known
+   and out of scope for this PR.
 
 A pipeline-level failure (F1, F2, F3, F4, F5, F9, F10 returning
 `500` or matching the "Broken" column for the **wiring**, not the
 endpoint logic) is the one exception: those are blockers because
 they make every annotation test below them meaningless. File the
-bug report **and** stop annotation work until a human resolves
-the pipeline regression.
+bug report **and** the remote issue ticket (step 4) **and** stop
+annotation work until a human resolves the pipeline regression.
 
 ### Interpreting the diff
 
@@ -547,12 +580,17 @@ this checklist.
 4. Docs endpoint serves:
 
    ```bash
-   curl -s http://localhost:8080/api-docs/swagger.json | jq '{basePath, paths: (.paths|keys)}'
+   curl -s http://localhost:8080/api-docs/swagger.json | jq '{paths: (.paths|keys), hasBasePath: has("basePath")}'
    ```
 
    - HTTP 200, JSON body.
    - `paths` lists every annotated route under `/api/v3/...` (single
-     prefix, never `/api/v3/api/v3/...`).
+      prefix, never `/api/v3/api/v3/...`).
+   - `hasBasePath` is `true` or `false` — do not use `jq '{basePath, ...}'`
+     to check for `basePath`; `jq` renders absent keys as `null`,
+     fabricating the appearance of an explicit null value where none
+     exists. Use `has("key")` to check presence, or `.key // "ABSENT"`
+     to make absence explicit.
    - Routes that have not yet been annotated (section 5) will be
      absent — that is expected; annotate them to make them appear.
 
