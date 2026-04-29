@@ -76,9 +76,9 @@ trait ApiControllerBase extends ControllerBase with SwaggerSupport {
     // resolve the servlet registration. That exception is caught and
     // printed to System.err by scalatra-swagger itself — it never
     // propagates. The trace is expected and harmless; /api/v3 is
-    // registered manually below. See doc/swagger/cors-init-npe.md.
+    // registered manually below. See doc/swagger/swagger.md.
     System.err.println(
-      "[gitbucket] expected scalatra-swagger init trace follows — see doc/swagger/cors-init-npe.md"
+      "[gitbucket] expected scalatra-swagger init trace follows — see doc/swagger/swagger.md"
     )
     super.initialize(config)
     System.err.println(
@@ -104,7 +104,11 @@ trait ApiControllerBase extends ControllerBase with SwaggerSupport {
   }
 
   /**
-   * 404 for non-implemented api
+   * 404 for non-implemented api paths.
+   * These catch-all routes use absolute /api/v3 paths because they are
+   * fallback handlers that must match before Scalatra delegates to the
+   * servlet container. They are NOT annotated with apiOperation and do
+   * not appear in swagger.json. See doc/swagger/swagger.md Section 5.
    */
   get("/api/v3/*") {
     NotFound()
@@ -122,28 +126,34 @@ trait ApiControllerBase extends ControllerBase with SwaggerSupport {
     NotFound()
   }
 
+  val getApiRoot =
+    apiOperation[ApiEndPoint]("getApiRoot")
+      .summary("Root endpoint")
+      .description("Returns basic API information")
+
   /**
    * https://developer.github.com/v3/#root-endpoint
+   * Route literal is relative ("/" not "/api/v3") per doc/swagger/swagger.md
+   * Section 5 — scalatra-swagger prepends the resourcePath "/api/v3".
    */
-  get("/api/v3") {
-    apiOperation[ApiEndPoint]("getApiRoot").summary("Root endpoint")
+  get("/", operation(getApiRoot)) {
     JsonFormat(ApiEndPoint())
   }
 
   /**
    * @see https://developer.github.com/v3/rate_limit/#get-your-current-rate-limit-status
-   * but not enabled.
+   * but not enabled. Route literal is relative per doc/swagger/swagger.md Section 5.
    */
-  get("/api/v3/rate_limit") {
+  get("/rate_limit") {
     contentType = formats("json")
-    // this message is same as github enterprise...
     org.scalatra.NotFound(ApiError("Rate limiting is not enabled."))
   }
 
   /**
-   * non-GitHub compatible API for listing plugins
+   * non-GitHub compatible API for listing plugins.
+   * Route literal is relative per doc/swagger/swagger.md Section 5.
    */
-  get("/api/v3/gitbucket/plugins") {
+  get("/gitbucket/plugins") {
     PluginRegistry().getPlugins().map { ApiPlugin(_) }
   }
 }
