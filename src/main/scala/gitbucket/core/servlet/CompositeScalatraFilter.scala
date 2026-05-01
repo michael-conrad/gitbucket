@@ -22,8 +22,7 @@ abstract class ControllerFilter extends Filter {
 
     if (
       !checkPath.startsWith("/upload/") && !checkPath.startsWith("/git/") && !checkPath.startsWith("/git-lfs/") &&
-      !checkPath.startsWith("/assets/") && !checkPath.startsWith("/plugin-assets/") &&
-      !checkPath.startsWith("/api-docs/")
+      !checkPath.startsWith("/assets/") && !checkPath.startsWith("/plugin-assets/")
     ) {
       val continue = process(request, response, checkPath)
       if (!continue) {
