@@ -6,8 +6,6 @@ import gitbucket.core.service.*
 import gitbucket.core.util.Implicits.*
 import gitbucket.core.util.*
 import gitbucket.core.plugin.PluginRegistry
-import org.scalatra.swagger.{Swagger, SwaggerSupport}
-import org.slf4j.LoggerFactory
 
 class ApiController
     extends ApiControllerBase
@@ -56,59 +54,12 @@ class ApiController
     with ReferrerAuthenticator
     with ReadableUsersAuthenticator
     with WritableUsersAuthenticator
-    with RequestCache {
+    with RequestCache
 
-  override implicit lazy val swagger: Swagger = GitBucketSwagger
-}
-
-trait ApiControllerBase extends ControllerBase with SwaggerSupport {
-
-  private val swaggerLogger = LoggerFactory.getLogger(classOf[ApiControllerBase])
-
-  override implicit lazy val swagger: Swagger = GitBucketSwagger
-  override protected def applicationDescription: String = "GitBucket API"
-
-  override def initialize(config: ConfigT): Unit = {
-    // super.initialize runs the full Scalatra init chain: sets this.config
-    // (fixes CorsSupport NPE), seeds CorsConfigKey, etc. It also routes
-    // through SwaggerSupportSyntax.initialize, which throws
-    // IllegalStateException under CompositeScalatraFilter because it cannot
-    // resolve the servlet registration. That exception is caught and
-    // printed to System.err by scalatra-swagger itself — it never
-    // propagates. The trace is expected and harmless; /api/v3 is
-    // registered manually below. See doc/swagger/swagger.md.
-    System.err.println(
-      "[gitbucket] expected scalatra-swagger init trace follows — see doc/swagger/swagger.md"
-    )
-    super.initialize(config)
-    System.err.println(
-      "[gitbucket] end expected scalatra-swagger init trace"
-    )
-
-    try {
-      swagger.register(
-        "api",
-        "/api/v3",
-        Some(applicationDescription),
-        this,
-        swaggerConsumes,
-        swaggerProduces,
-        swaggerProtocols,
-        swaggerAuthorizations
-      )
-      swaggerLogger.info("Swagger manual registration succeeded for ApiControllerBase")
-    } catch {
-      case e: Exception =>
-        swaggerLogger.warn(s"Swagger manual registration failed: ${e.getMessage}", e)
-    }
-  }
+trait ApiControllerBase extends ControllerBase {
 
   /**
-   * 404 for non-implemented api paths.
-   * These catch-all routes use absolute /api/v3 paths because they are
-   * fallback handlers that must match before Scalatra delegates to the
-   * servlet container. They are NOT annotated with apiOperation and do
-   * not appear in swagger.json. See doc/swagger/swagger.md Section 5.
+   * 404 for non-implemented api
    */
   get("/api/v3/*") {
     NotFound()
@@ -126,34 +77,27 @@ trait ApiControllerBase extends ControllerBase with SwaggerSupport {
     NotFound()
   }
 
-  val getApiRoot =
-    apiOperation[ApiEndPoint]("getApiRoot")
-      .summary("Root endpoint")
-      .description("Returns basic API information")
-
   /**
    * https://developer.github.com/v3/#root-endpoint
-   * Route literal is relative ("/" not "/api/v3") per doc/swagger/swagger.md
-   * Section 5 — scalatra-swagger prepends the resourcePath "/api/v3".
    */
-  get("/", operation(getApiRoot)) {
+  get("/api/v3") {
     JsonFormat(ApiEndPoint())
   }
 
   /**
    * @see https://developer.github.com/v3/rate_limit/#get-your-current-rate-limit-status
-   * but not enabled. Route literal is relative per doc/swagger/swagger.md Section 5.
+   * but not enabled.
    */
-  get("/rate_limit") {
+  get("/api/v3/rate_limit") {
     contentType = formats("json")
+    // this message is same as github enterprise...
     org.scalatra.NotFound(ApiError("Rate limiting is not enabled."))
   }
 
   /**
-   * non-GitHub compatible API for listing plugins.
-   * Route literal is relative per doc/swagger/swagger.md Section 5.
+   * non-GitHub compatible API for listing plugins
    */
-  get("/gitbucket/plugins") {
+  get("/api/v3/gitbucket/plugins") {
     PluginRegistry().getPlugins().map { ApiPlugin(_) }
   }
 }
