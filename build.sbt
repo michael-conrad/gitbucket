@@ -289,9 +289,9 @@ Container / javaOptions ++= Seq(
   "-Dorg.eclipse.jetty.annotations.AnnotationParser.LEVEL=OFF"
 )
 
-// Local debug: create .debug-on file to enable remote debugging
+// Local debug: create .debug file to enable remote debugging
 Container / javaOptions ++= {
-  if (file(".debug-on").exists) {
+  if (file(".debug").exists) {
     Seq("-Xdebug", "-Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=8000")
   } else {
     Seq.empty

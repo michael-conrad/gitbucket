@@ -1,19 +1,21 @@
 Debug GitBucket on IntelliJ
 ========
 
-Enable remote debugging by creating a `.debug-on` file in the project root (this file is gitignored):
+## Setup
+
+Create a `.debug` file in the project root to enable remote debugging (this file is gitignored):
 
 ```shell
-touch .debug-on
+touch .debug
 ```
 
-This triggers the build to add JVM debug options automatically.
-
-Run GitBucket:
+Start GitBucket:
 
 ```shell
 ./sbt "~Container / start"
 ```
+
+## Attach Debugger
 
 Wait for `Listening for transport dt_socket at address: 8000`, then in IntelliJ:
 
@@ -25,9 +27,7 @@ Wait for `Listening for transport dt_socket at address: 8000`, then in IntelliJ:
 
 ![Remote debug configuration on IntelliJ](remote_debug.png)
 
-
-
-Set a breakpoint (e.g., line 83 in `src/main/scala/gitbucket/core/controller/ApiController.scala`), then trigger the endpoint with:
+Set a breakpoint (e.g., line 83 in `src/main/scala/gitbucket/core/controller/ApiController.scala`), then trigger the endpoint:
 
 ```shell
 curl http://localhost:8080/api/v3
@@ -35,7 +35,7 @@ curl http://localhost:8080/api/v3
 
 ## Troubleshooting
 
-**Breakpoint hits but "frames are not available":**
+### Breakpoint hits but "frames are not available"
 
 IntelliJ's source mapping is out of sync. Fix:
 
@@ -46,7 +46,7 @@ IntelliJ's source mapping is out of sync. Fix:
 
 May need to disconnect/reconnect debugger 1-2 times for frames to appear.
 
-**Port 8000 already in use:**
+### Port 8000 already in use
 
 A previous debug session didn't clean up. Kill the process:
 
@@ -56,14 +56,14 @@ lsof -ti:8000 | xargs kill -9
 
 Then restart sbt.
 
-**Breakpoint doesn't hit:**
+### Breakpoint doesn't hit
 
 Ensure code was compiled **after** debugger attached. Edit the source file (add/remove a blank line) to trigger recompilation, then retry the request.
 
-**Disable debugging:**
+### Disable debugging
 
-Delete the `.debug-on` file and restart sbt:
+Delete the `.debug` file and restart sbt:
 
 ```shell
-rm .debug-on
+rm .debug
 ```
