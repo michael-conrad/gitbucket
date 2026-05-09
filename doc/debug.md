@@ -17,7 +17,7 @@ Start GitBucket:
 
 ## Attach Debugger
 
-Wait for `Listening for transport dt_socket at address: 8000`, then in IntelliJ:
+Wait for `Listening for transport dt_socket at address: 8000`. Then in IntelliJ:
 
 1. **Run** → **Edit Configurations…**
 2. Click **+** → **Remote JVM Debug**
@@ -27,7 +27,7 @@ Wait for `Listening for transport dt_socket at address: 8000`, then in IntelliJ:
 
 ![Remote debug configuration on IntelliJ](remote_debug.png)
 
-Set a breakpoint (e.g., line 83 in `src/main/scala/gitbucket/core/controller/ApiController.scala`), then trigger the endpoint:
+Set a breakpoint (e.g., line 83 in `src/main/scala/gitbucket/core/controller/ApiController.scala`). Then trigger the endpoint:
 
 ```shell
 curl http://localhost:8080/api/v3
@@ -44,7 +44,7 @@ IntelliJ's source mapping is out of sync. Fix:
 3. Re-run `./sbt "~Container / start"`
 4. Re-attach debugger
 
-May need to disconnect/reconnect debugger 1-2 times for frames to appear.
+You may need to disconnect/reconnect the debugger one to two times for frames to appear.
 
 ### Port 8000 already in use
 
