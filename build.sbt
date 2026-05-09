@@ -286,10 +286,16 @@ Test / testOptions ++= {
 
 Container / javaOptions ++= Seq(
   "-Dlogback.configurationFile=/logback-dev.xml",
-  "-Xdebug",
-  "-Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=8000",
-  "-Dorg.eclipse.jetty.annotations.AnnotationParser.LEVEL=OFF",
-  // "-Ddev-features=keep-session"
+  "-Dorg.eclipse.jetty.annotations.AnnotationParser.LEVEL=OFF"
 )
+
+// Local debug: create .debug file to enable remote debugging
+Container / javaOptions ++= {
+  if (file(".debug").exists) {
+    Seq("-Xdebug", "-Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=8000")
+  } else {
+    Seq.empty
+  }
+}
 Container / containerLibs := Seq(("org.eclipse.jetty" % "jetty-runner" % JettyVersion).intransitive())
 Container / containerMain := "org.eclipse.jetty.runner.Runner"

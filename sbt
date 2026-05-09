@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 set +e
-declare builtin_sbt_version="1.10.11"
+declare builtin_sbt_version="1.12.11"
 declare -a residual_args
 declare -a java_args
 declare -a scalac_args
@@ -14,7 +14,7 @@ declare -a shutdownall
 declare -a original_args
 declare java_cmd=java
 declare java_version
-declare init_sbt_version=_to_be_replaced
+declare init_sbt_version=1.12.11
 declare sbt_default_mem=1024
 declare -r default_sbt_opts=""
 declare -r default_java_opts="-Dfile.encoding=UTF-8"
@@ -22,11 +22,13 @@ declare sbt_verbose=
 declare sbt_debug=
 declare build_props_sbt_version=
 declare use_sbtn=
+declare use_jvm_client=
 declare no_server=
 declare sbtn_command="$SBTN_CMD"
-declare sbtn_version="1.10.8"
+declare sbtn_version="2.0.0-RC13"
 declare use_colors=1
 declare is_this_dir_sbt=""
+declare hide_jdk_warnings=1
 
 ###  ------------------------------- ###
 ###  Helper methods for BASH scripts ###
@@ -84,7 +86,7 @@ CYGWIN_FLAG=$(if is_cygwin; then echo true; else echo false; fi)
 # windows style paths.
 cygwinpath() {
   local file="$1"
-  if [[ "$CYGWIN_FLAG" == "true" ]]; then #"
+  if [[ "$CYGWIN_FLAG" == "true" ]]; then
     echo $(cygpath -w $file)
   else
     echo $file
@@ -113,7 +115,7 @@ echoerr_error () {
     echoerr -e "[${RED}error${NC}] $@"
   else
     echoerr "[error] $@"
-  fi
+  fi #"
 }
 vlog () {
   [[ $sbt_verbose || $sbt_debug ]] && echoerr "$@"
@@ -161,7 +163,7 @@ acquire_sbt_jar () {
     sbt_jar="$download_jar"
   else
     sbt_url=$(jar_url "$launcher_sv")
-    echoerr "downloading sbt launcher $launcher_sv"
+    dlog "downloading sbt launcher $launcher_sv"
     download_url "$sbt_url" "${download_jar}.temp"
     download_url "${sbt_url}.sha1" "${download_jar}.sha1"
     if command -v shasum > /dev/null; then
@@ -197,7 +199,7 @@ acquire_sbtn () {
       archive_target="$p/sbtn-${arch}-pc-linux-${sbtn_v}.tar.gz"
       url="https://github.com/sbt/sbtn-dist/releases/download/v${sbtn_v}/sbtn-${arch}-pc-linux-${sbtn_v}.tar.gz"
     else
-      echoerr "sbtn is not supported on $arch"
+      echoerr_error "sbtn is not supported on $arch"
       exit 2
     fi
   elif [[ "$OSTYPE" == "darwin"* ]]; then
@@ -209,14 +211,14 @@ acquire_sbtn () {
     archive_target="$p/sbtn-x86_64-pc-win32-${sbtn_v}.zip"
     url="https://github.com/sbt/sbtn-dist/releases/download/v${sbtn_v}/sbtn-x86_64-pc-win32-${sbtn_v}.zip"
   else
-    echoerr "sbtn is not supported on $OSTYPE"
+    echoerr_error "sbtn is not supported on $OSTYPE"
     exit 2
   fi
 
   if [[ -f "$target" ]]; then
     sbtn_command="$target"
   else
-    echoerr "downloading sbtn ${sbtn_v} for ${arch}"
+    dlog "downloading sbtn ${sbtn_v} for ${arch}"
     download_url "$url" "$archive_target"
     if [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "$OSTYPE" == "darwin"* ]]; then
       tar zxf "$archive_target" --directory "$p"
@@ -301,7 +303,7 @@ addMemory () {
 }
 
 addDefaultMemory() {
-  # if we detect any of these settings in ${JAVA_OPTS} or ${JAVA_TOOL_OPTIONS} we need to NOT output our settings.
+  # if we detect any of these settings in ${JAVA_OPTS} or ${JAVA_TOOL_OPTIONS} or ${JDK_JAVA_OPTIONS} we need to NOT output our settings.
   # The reason is the Xms/Xmx, if they don't line up, cause errors.
   if [[ "${java_args[@]}" == *-Xmx* ]] || \
      [[ "${java_args[@]}" == *-Xms* ]] || \
@@ -320,6 +322,15 @@ addDefaultMemory() {
        [[ "${JAVA_TOOL_OPTIONS}" == *-XX:InitialRAMPercentage* ]] || \
        [[ "${JAVA_TOOL_OPTIONS}" == *-XX:MaxRAMPercentage* ]] || \
        [[ "${JAVA_TOOL_OPTIONS}" == *-XX:MinRAMPercentage* ]] ; then
+    :
+  elif [[ "${JDK_JAVA_OPTIONS}" == *-Xmx* ]] || \
+       [[ "${JDK_JAVA_OPTIONS}" == *-Xms* ]] || \
+       [[ "${JDK_JAVA_OPTIONS}" == *-Xss* ]] || \
+       [[ "${JDK_JAVA_OPTIONS}" == *-XX:+UseCGroupMemoryLimitForHeap* ]] || \
+       [[ "${JDK_JAVA_OPTIONS}" == *-XX:MaxRAM* ]] || \
+       [[ "${JDK_JAVA_OPTIONS}" == *-XX:InitialRAMPercentage* ]] || \
+       [[ "${JDK_JAVA_OPTIONS}" == *-XX:MaxRAMPercentage* ]] || \
+       [[ "${JDK_JAVA_OPTIONS}" == *-XX:MinRAMPercentage* ]] ; then
     :
   elif [[ "${sbt_options[@]}" == *-Xmx* ]] || \
        [[ "${sbt_options[@]}" == *-Xms* ]] || \
@@ -346,12 +357,24 @@ addSbtScriptProperty () {
   fi
 }
 
+addJdkWorkaround () {
+  local is_25="$(expr $java_version ">=" 25)"
+  if [[ "$hide_jdk_warnings" == "0" ]]; then
+    :
+  else
+    if [[ "$is_25" == "1" ]]; then
+      addJava "--sun-misc-unsafe-memory-access=allow"
+      addJava "--enable-native-access=ALL-UNNAMED"
+    fi
+  fi
+}
+
 require_arg () {
   local type="$1"
   local opt="$2"
   local arg="$3"
   if [[ -z "$arg" ]] || [[ "${arg:0:1}" == "-" ]]; then
-    echo "$opt requires <$type> argument"
+    echoerr "$opt requires <$type> argument"
     exit 1
   fi
 }
@@ -392,23 +415,27 @@ jdk_version() {
 #   - SBT_OPTS environment variable,
 #   - _JAVA_OPTIONS environment variable and
 #   - JAVA_TOOL_OPTIONS environment variable
+#   - JDK_JAVA_OPTIONS environment variable
 # in that order.
 findProperty() {
   local -a java_opts_array
   local -a sbt_opts_array
   local -a _java_options_array
   local -a java_tool_options_array
+  local -a jdk_java_options_array
   read -a java_opts_array <<< "$JAVA_OPTS"
   read -a sbt_opts_array <<< "$SBT_OPTS"
   read -a _java_options_array <<< "$_JAVA_OPTIONS"
   read -a java_tool_options_array <<< "$JAVA_TOOL_OPTIONS"
+  read -a jdk_java_options_array <<< "$JDK_JAVA_OPTIONS"
 
   local args_to_check=(
     "${java_args[@]}"
     "${java_opts_array[@]}"
     "${sbt_opts_array[@]}"
     "${_java_options_array[@]}"
-    "${java_tool_options_array[@]}")
+    "${java_tool_options_array[@]}"
+    "${jdk_java_options_array[@]}")
 
   for opt in "${args_to_check[@]}"; do
     if [[ "$opt" == -D$1=* ]]; then
@@ -455,20 +482,32 @@ checkJava() {
   # Now check to see if it's a good enough version
   local good_enough="$(expr $java_version ">=" $required_version)"
   if [[ "$java_version" == "" ]]; then
-    echo
-    echo "No Java Development Kit (JDK) installation was detected."
-    echo Please go to http://www.oracle.com/technetwork/java/javase/downloads/ and download.
-    echo
+    echoerr
+    echoerr "No Java Development Kit (JDK) installation was detected."
+    echoerr Go to https://adoptium.net/ etc and download.
+    echoerr
     exit 1
   elif [[ "$good_enough" != "1" ]]; then
+    echoerr
+    echoerr "The Java Development Kit (JDK) installation you have is not up to date."
+    echoerr $script_name requires at least version $required_version+, you have
+    echoerr version $java_version
+    echoerr
+    echoerr Go to https://adoptium.net/ etc and download
+    echoerr a valid JDK and install before running $script_name.
     echo
-    echo "The Java Development Kit (JDK) installation you have is not up to date."
-    echo $script_name requires at least version $required_version+, you have
-    echo version $java_version
-    echo
-    echo Please go to http://www.oracle.com/technetwork/java/javase/downloads/ and download
-    echo a valid JDK and install before running $script_name.
-    echo
+    exit 1
+  fi
+}
+
+# sbt 2.x requires JDK 17+
+checkJava17ForSbt2() {
+  local sbtV="$build_props_sbt_version"
+  [[ "$sbtV" == "" ]] && sbtV="$init_sbt_version"
+  [[ "$sbtV" == "" ]] && return
+  local sbtMajor=$(echo "$sbtV" | sed 's/^\([0-9]*\).*/\1/')
+  if (( sbtMajor >= 2 )) && [[ "$java_version" != "no_java" ]] && (( java_version < 17 )); then
+    echoerr "[error] sbt 2.x requires JDK 17 or above, but you have JDK $java_version"
     exit 1
   fi
 }
@@ -482,7 +521,6 @@ copyRt() {
     java9_rt=$(echo "$java9_ext/rt.jar")
     vlog "[copyRt] java9_rt = '$java9_rt'"
     if [[ ! -f "$java9_rt" ]]; then
-      echo copying runtime jar...
       mkdir -p "$java9_ext"
       "$java_cmd" \
         "${sbt_options[@]}" \
@@ -532,7 +570,7 @@ run() {
   copyRt
 
   # If we're in cygwin, we should use the windows config, and terminal hacks
-  if [[ "$CYGWIN_FLAG" == "true" ]]; then #"
+  if [[ "$CYGWIN_FLAG" == "true" ]]; then
     stty -icanon min 1 -echo > /dev/null 2>&1
     addJava "-Djline.terminal=jline.UnixTerminal"
     addJava "-Dsbt.cygwin=true"
@@ -541,8 +579,6 @@ run() {
   detect_working_directory
   if [[ $print_sbt_version ]]; then
     execRunner "$java_cmd" -jar "$sbt_jar" "sbtVersion" | tail -1 | sed -e 's/\[info\]//g'
-  elif [[ $print_sbt_script_version ]]; then
-    echo "$init_sbt_version"
   elif [[ $print_version ]]; then
     if [[ -n "$is_this_dir_sbt" ]]; then
       execRunner "$java_cmd" -jar "$sbt_jar" "sbtVersion" | tail -1 | sed -e 's/\[info\]/sbt version in this project:/g'
@@ -556,7 +592,7 @@ run() {
     for procId in "${sbt_processes[@]}"; do
       kill -9 $procId
     done
-    echo "shutdown ${#sbt_processes[@]} sbt processes"
+    echoerr "shutdown ${#sbt_processes[@]} sbt processes"
   else
     checkWorkingDirectory
     # run sbt
@@ -564,6 +600,7 @@ run() {
       "${java_args[@]}" \
       "${sbt_options[@]}" \
       "${java_tool_options[@]}" \
+      "${jdk_java_options[@]}" \
       -jar "$sbt_jar" \
       "${sbt_commands[@]}" \
       "${residual_args[@]}"
@@ -572,7 +609,7 @@ run() {
   exit_code=$?
 
   # Clean up the terminal from cygwin hacks.
-  if [[ "$CYGWIN_FLAG" == "true" ]]; then #"
+  if [[ "$CYGWIN_FLAG" == "true" ]]; then
     stty icanon echo > /dev/null 2>&1
   fi
   exit $exit_code
@@ -610,6 +647,8 @@ Usage: `basename "$0"` [options]
   --supershell=auto|always|true|false|never
                       enable or disable supershell            (sbt 1.3 and above)
   --traces            generate Trace Event report on shutdown (sbt 1.3 and above)
+  --client            run native client
+  --jvm-client        run JVM client
   --timings           display task timings report on shutdown
   --allow-empty       start sbt even if current directory contains no sbt project
   --sbt-dir   <path>  path to global settings/plugins directory (default: ~/.sbt)
@@ -702,6 +741,8 @@ process_args () {
           -d|-debug|--debug) sbt_debug=1 && addSbt "-debug" && shift ;;
            -client|--client) use_sbtn=1 && shift ;;
                    --server) use_sbtn=0 && shift ;;
+               --jvm-client) use_sbtn=0 && use_jvm_client=1 && addSbt "--client" && shift ;;
+     --no-hide-jdk-warnings) hide_jdk_warnings=0 && shift ;;
 
                  -mem|--mem) require_arg integer "$1" "$2" && addMemory "$2" && shift 2 ;;
      -jvm-debug|--jvm-debug) require_arg port "$1" "$2" && addDebugger $2 && shift 2 ;;
@@ -736,8 +777,11 @@ process_args () {
 
 loadConfigFile() {
   # Make sure the last line is read even if it doesn't have a terminating \n
-  cat "$1" | sed $'/^\#/d;s/\r$//' | while read -r line || [[ -n "$line" ]]; do
-    eval echo $line
+  # Output lines literally without shell expansion to handle special characters safely
+  cat "$1" | sed $'/^\#/d;s/[[:space:]]\{1,\}#.*//;s/\r$//' | while read -r line || [[ -n "$line" ]]; do
+    # Use printf with properly quoted variable to prevent shell expansion
+    # This safely handles special characters like |, *, &, etc.
+    printf '%s\n' "$line"
   done
 }
 
@@ -759,7 +803,7 @@ detectNativeClient() {
     arch=$(uname -m)
     [[ -f "${sbt_bin_dir}/sbtn-${arch}-pc-linux" ]] && sbtn_command="${sbt_bin_dir}/sbtn-${arch}-pc-linux"
   elif [[ "$OSTYPE" == "darwin"* ]]; then
-    [[ -f "${sbt_bin_dir}/sbtn-x86_64-apple-darwin" ]] && sbtn_command="${sbt_bin_dir}/sbtn-x86_64-apple-darwin"
+    [[ -f "${sbt_bin_dir}/sbtn-universal-apple-darwin" ]] && sbtn_command="${sbt_bin_dir}/sbtn-universal-apple-darwin"
   elif [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]]; then
     [[ -f "${sbt_bin_dir}/sbtn-x86_64-pc-win32.exe" ]] && sbtn_command="${sbt_bin_dir}/sbtn-x86_64-pc-win32.exe"
   elif [[ "$OSTYPE" == "freebsd"* ]]; then
@@ -771,6 +815,11 @@ detectNativeClient() {
 
 # Run native client if build.properties points to 1.4+ and has SBT_NATIVE_CLIENT
 isRunNativeClient() {
+  # sbt new/init should not use native client as it needs to run outside a project
+  if [[ "$sbt_new" == "true" ]]; then
+    echo "false"
+    return
+  fi
   sbtV="$build_props_sbt_version"
   [[ "$sbtV" == "" ]] && sbtV="$init_sbt_version"
   [[ "$sbtV" == "" ]] && sbtV="0.0.0"
@@ -817,16 +866,23 @@ runNativeClient() {
 
 original_args=("$@")
 
+sbt_file_opts=()
+
 # Pull in the machine-wide settings configuration.
 if [[ -f "$machine_sbt_opts_file" ]]; then
-  set -- $(loadConfigFile "$machine_sbt_opts_file") "$@"
+  sbt_file_opts+=($(loadConfigFile "$machine_sbt_opts_file"))
 else
   # Otherwise pull in the default settings configuration.
-  [[ -f "$dist_sbt_opts_file" ]] && set -- $(loadConfigFile "$dist_sbt_opts_file") "$@"
+  [[ -f "$dist_sbt_opts_file" ]] && sbt_file_opts+=($(loadConfigFile "$dist_sbt_opts_file"))
 fi
 
-# Pull in the project-level config file, if it exists.
-[[ -f "$sbt_opts_file" ]] && set -- $(loadConfigFile "$sbt_opts_file") "$@"
+# Pull in the project-level config file, if it exists (highest priority, overrides machine/dist).
+[[ -f "$sbt_opts_file" ]] && sbt_file_opts+=($(loadConfigFile "$sbt_opts_file"))
+
+# Prepend sbtopts so command line args appear last and win for duplicate properties.
+if (( ${#sbt_file_opts[@]} > 0 )); then
+  set -- "${sbt_file_opts[@]}" "$@"
+fi
 
 # Pull in the project-level java config, if it exists.
 [[ -f ".jvmopts" ]] && export JAVA_OPTS="$JAVA_OPTS $(loadConfigFile .jvmopts)"
@@ -839,6 +895,7 @@ fi
 java_args=($JAVA_OPTS)
 sbt_options0=(${SBT_OPTS:-$default_sbt_opts})
 java_tool_options=($JAVA_TOOL_OPTIONS)
+jdk_java_options=($JDK_JAVA_OPTIONS)
 if [[ "$SBT_NATIVE_CLIENT" == "true" ]]; then
   use_sbtn=1
 fi
@@ -855,15 +912,24 @@ args1=( "${cli_options[@]}" "${cli_commands[@]}" "${sbt_additional_commands[@]}"
 process_args "${args1[@]}"
 vlog "[sbt_options] $(declare -p sbt_options)"
 
-if [[ "$(isRunNativeClient)" == "true" ]]; then
+# Handle --script-version before native client so it works on sbt 2.x project dirs (#8711)
+if [[ $print_sbt_script_version ]]; then
+  echo "$init_sbt_version"
+  exit 0
+fi
+
+java_version="$(jdk_version)"
+vlog "[process_args] java_version = '$java_version'"
+checkJava17ForSbt2
+
+if [[ "$(isRunNativeClient)" == "true" ]] && [[ -z "$print_version" ]]; then
   set -- "${residual_args[@]}"
   argumentCount=$#
   runNativeClient
 else
-  java_version="$(jdk_version)"
-  vlog "[process_args] java_version = '$java_version'"
   addDefaultMemory
   addSbtScriptProperty
+  addJdkWorkaround
   set -- "${residual_args[@]}"
   argumentCount=$#
   run
