@@ -289,6 +289,7 @@ Container / javaOptions ++= Seq(
   "-Xdebug",
   "-Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=8000",
   "-Dorg.eclipse.jetty.annotations.AnnotationParser.LEVEL=OFF",
+  // "-Ddev-features=keep-session"
 )
 Container / containerLibs := Seq(("org.eclipse.jetty" % "jetty-runner" % JettyVersion).intransitive())
 Container / containerMain := "org.eclipse.jetty.runner.Runner"
