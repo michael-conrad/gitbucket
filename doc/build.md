@@ -42,7 +42,7 @@ You can modify the logging configuration by editing `src/main/resources/logback-
 Note that HttpSession is cleared when auto-reloading happens.
 This is a bit annoying when developing features that require sign-in.
 You can keep HttpSession even if GitBucket is restarted by enabling this configuration in `build.sbt`:
-https://github.com/gitbucket/gitbucket/blob/3dcc0aee3c4413b05be7c03476626cb202674afc/build.sbt#292
+https://github.com/gitbucket/gitbucket/blob/3dcc0aee3c4413b05be7c03476626cb202674afc/build.sbt#L292
 
 Or by launching GitBucket with the following command:
 ```shell
