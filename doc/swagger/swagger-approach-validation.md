@@ -345,7 +345,7 @@ sbt test
 
 Expected output: `Tests: succeeded 7, failed 0, canceled 0, ignored 0, pending 0`
 
-All tests are behavioral — they spin up a Jetty server, send HTTP requests, and assert on live responses. If `sbt test` cannot execute (server fails to start, Jetty unavailable), the verdict is FAIL — NEVER substitute structural evidence (e.g., "the source files exist" or "the code compiles") for behavioral evidence. The classification question per issue #836 is: "does this test verify runtime behavior?" — the answer is YES for all seven SCs.
+All tests are behavioral — they spin up a Jetty server, send HTTP requests, and assert on live responses. If `sbt test` cannot execute (server fails to start, Jetty unavailable), the verdict is FAIL — never substitute structural evidence (e.g., "the source files exist" or "the code compiles") for behavioral evidence. The classification question for each test is: "does this test verify runtime behavior?" The answer is YES for all seven SCs — they spin up a Jetty server and assert on live HTTP responses.
 
 ## Success Criteria
 

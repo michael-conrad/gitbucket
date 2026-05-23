@@ -181,11 +181,11 @@ The anchor test file `CorsInitNpeSpec.scala` must be created as part of Phase 0/
 
 ### Evidence type classification for TDD tests
 
-All TDD tests in this project verify runtime behavior (HTTP responses from a running Jetty/GitBucket server). Per the runtime-behavioral evidence classification gate (issue #836):
+All TDD tests in this project verify runtime behavior (HTTP responses from a running Jetty/GitBucket server). The classification principle is substrate-determined: the evidence type depends on what the test substrate actually verifies, not on what a cheaper check could confirm.
 
 - Every `*SwaggerSpec.scala` test SC MUST be classified `behavioral` — the test sends HTTP requests to a live server and asserts on status codes, JSON responses, and header values
 - Structural evidence (source file existence, code pattern matching) is INSUFFICIENT for these tests — the classification question is "does this change affect runtime behavior?" and the answer is always YES for Swagger endpoint additions
-- If a behavioral test cannot execute (server unavailable, infrastructure failure), the SC verdict is FAIL per critical-rules-060 — NEVER substitute grep or structural checks for runtime verification
+- If a behavioral test cannot execute (server unavailable, infrastructure failure), the verdict is FAIL — NEVER substitute grep or structural checks for runtime verification
 
 ---
 
@@ -230,7 +230,7 @@ All F-checks are classified `behavioral` because they verify runtime behavior (H
 
 ### Mandatory regression testing requirement
 
-Run complete smoke tests F1–F11 **BEFORE any change** (pre-RED snapshot) and **AFTER verification-before-completion** (post-VBC snapshot). Diff the two snapshots. Every cell must match the "Expected" column post-change — do NOT submit if any regression is found.
+Run complete smoke tests F1–F11 **BEFORE any change** (pre-RED snapshot) and **AFTER final verification** (post-verification snapshot). Diff the two snapshots. Every cell must match the "Expected" column post-change — do NOT submit if any regression is found.
 
 ### Setup
 
@@ -323,7 +323,7 @@ Before and after any Swagger-related change:
 
 ## 9. Verification Checklist
 
-Post-implementation verification steps with evidence type classifications per the runtime-behavioral evidence classification gate (issue #836). The classification question is substrate-determined: "does this step verify runtime behavior?" If YES, the evidence type is `behavioral` regardless of whether a cheaper structural check exists.
+Post-implementation verification steps with evidence type classifications. The classification is substrate-determined: "does this step verify runtime behavior?" If YES, the evidence type is `behavioral` regardless of whether a cheaper structural check exists.
 
 | # | Step | Evidence Type | Rationale |
 |---|------|---------------|-----------|
@@ -339,7 +339,7 @@ Post-implementation verification steps with evidence type classifications per th
 | 10 | `ApiIntegrationTest` passes with zero regressions | `behavioral` | Runtime: integration test against live server |
 | 11 | Pre/post smoke test diff shows no regressions | `behavioral` | Runtime: HTTP responses from live server captured before and after |
 
-Steps 7 and 8 are `string` evidence — they verify code patterns, not runtime behavior. All other steps verify runtime behavior and are classified `behavioral`. Using structural evidence (e.g., "file exists") for behavioral steps is insufficient per the #836 classification gate.
+Steps 7 and 8 are `string` evidence — they verify code patterns, not runtime behavior. All other steps verify runtime behavior and are classified `behavioral`. Structural evidence (e.g., confirming a file exists) or string evidence (e.g., grep for a pattern) is insufficient for behavioral steps — they must be verified by executing against a live GitBucket instance.
 
 ---
 
@@ -356,39 +356,81 @@ If smoke tests reveal a pre-existing API regression:
 
 ## 11. Annotation Examples
 
-Reference examples showing the inline pattern with absolute route paths:
+Before/after pairs showing how bare routes transform into fully annotated Swagger endpoints. Each pair covers a distinct parameter pattern:
+
+### 11.1 GET with path parameters — `getIssue`
+
+**Before (un-annotated route):**
 
 ```scala
-get("/api/v3/repos/:owner/:repository/issues/:id", apiOperation[ApiIssue]("getIssue")
-  .summary("Get a single issue")
-  .description("Returns a single issue by its ID for the specified repository")
-  .parameters(
-    pathParam[String]("owner").description("Repository owner"),
-    pathParam[String]("repository").description("Repository name"),
-    pathParam[Int]("id").description("Issue number")
-  )
-  .responseMessages(ResponseMessage(404, "Issue not found"))) { ... }
+get("/api/v3/repos/:owner/:repository/issues/:id") { ... }
 ```
 
-```scala
-get("/api/v3/user", apiOperation[ApiUser]("getAuthenticatedUser")
-  .summary("Get the authenticated user")
-  .description("Returns the authenticated user")
-  .responseMessages(ResponseMessage(401, "Unauthorized"))) { ... }
-```
+**After (annotated route):**
 
 ```scala
-post("/api/v3/repos/:owner/:repository/issues", apiOperation[ApiIssue]("createIssue")
-  .summary("Create an issue")
-  .description("Create a new issue in the specified repository")
-  .parameters(
-    pathParam[String]("owner").description("Repository owner"),
-    pathParam[String]("repository").description("Repository name"),
-    bodyParam[CreateIssuePayload].description("Issue data")
-  )
-  .responseMessages(
-    ResponseMessage(201, "Issue created"),
-    ResponseMessage(401, "Unauthorized"),
-    ResponseMessage(422, "Validation failed")
-  )) { ... }
+get("/api/v3/repos/:owner/:repository/issues/:id",
+  apiOperation[ApiIssue]("getIssue")
+    .summary("Get a single issue")
+    .description("Returns a single issue by its ID for the specified repository")
+    .parameters(
+      pathParam[String]("owner").description("Repository owner"),
+      pathParam[String]("repository").description("Repository name"),
+      pathParam[Int]("id").description("Issue number")
+    )
+    .responseMessages(ResponseMessage(404, "Issue not found"))) { ... }
+```
+
+### 11.2 GET with query parameters — `listIssues`
+
+**Before (un-annotated route):**
+
+```scala
+get("/api/v3/repos/:owner/:repository/issues") { ... }
+```
+
+**After (annotated route):**
+
+```scala
+get("/api/v3/repos/:owner/:repository/issues",
+  apiOperation[Seq[ApiIssue]]("listIssues")
+    .summary("List repository issues")
+    .description("Returns a list of issues for the specified repository")
+    .parameters(
+      pathParam[String]("owner").description("Repository owner"),
+      pathParam[String]("repository").description("Repository name"),
+      queryParam[String]("state").description("Issue state: open, closed, or all").allowableValues("open", "closed", "all"),
+      queryParam[String]("sort").description("Sort field: created, updated, or comments").allowableValues("created", "updated", "comments"),
+      queryParam[String]("direction").description("Sort direction: asc or desc").allowableValues("asc", "desc"),
+      queryParam[Int]("page").description("Page number for pagination"),
+      queryParam[Int]("per_page").description("Number of issues per page")
+    )
+    .responseMessages(ResponseMessage(404, "Repository not found"))) { ... }
+```
+
+### 11.3 POST with body parameter — `createIssue`
+
+**Before (un-annotated route):**
+
+```scala
+post("/api/v3/repos/:owner/:repository/issues") { ... }
+```
+
+**After (annotated route):**
+
+```scala
+post("/api/v3/repos/:owner/:repository/issues",
+  apiOperation[ApiIssue]("createIssue")
+    .summary("Create an issue")
+    .description("Create a new issue in the specified repository")
+    .parameters(
+      pathParam[String]("owner").description("Repository owner"),
+      pathParam[String]("repository").description("Repository name"),
+      bodyParam[CreateIssuePayload].description("Issue data")
+    )
+    .responseMessages(
+      ResponseMessage(201, "Issue created"),
+      ResponseMessage(401, "Unauthorized"),
+      ResponseMessage(422, "Validation failed")
+    )) { ... }
 ```
