@@ -20,14 +20,17 @@ Three pieces, in three files:
    silently produce empty/partial output, so this **must** be a
    singleton.
 2. `gitbucket.core.controller.api.SwaggerResourcesApp` — a
-   `ScalatraServlet with JacksonSwaggerBase` that serves
-   `swagger.json`. It uses `GitBucketSwagger` as its implicit
-   `Swagger` and `gitbucket.core.api.JsonFormat.jsonFormats` as its
-   JSON formats.
+   `ScalatraServlet with JacksonJsonSupport with CorsSupport with SwaggerBase`
+   that serves `swagger.json`. It overrides `bathPath` (an upstream typo
+   in Scalatra-Swagger — not `basePath`) to return `Some("/api/v3")`,
+   ensuring `swagger.json` contains `"basePath": "/api/v3"`. It uses
+   `GitBucketSwagger` as its implicit `Swagger` and
+   `gitbucket.core.api.JsonFormat.jsonFormats` as its JSON formats.
 3. `gitbucket.core.controller.ApiControllerBase` (the trait behind
    `ApiController`) extends `SwaggerSupport`, binds
-   `swagger = GitBucketSwagger`, and **manually** registers the
-   `/api/v3` resource against that `Swagger` in its `initialize`.
+   `swagger = GitBucketSwagger`, and **manually** registers the API
+   resource against that `Swagger` in its `initialize` with an
+   **empty** `resourcePath` (`""`).
 
 `ScalatraBootstrap` wires them up:
 
@@ -81,8 +84,9 @@ override def initialize(config: ConfigT): Unit = {
   // IllegalStateException under CompositeScalatraFilter because it cannot
   // resolve the servlet registration. That exception is caught and
   // printed to System.err by scalatra-swagger itself — it never
-  // propagates. The trace is expected and harmless; /api/v3 is
-  // registered manually below.
+  // propagates. The trace is expected and harmless; the resource is
+  // registered manually below with an EMPTY resourcePath (see "Why
+  // empty resourcePath" below).
   System.err.println(
     "[gitbucket] expected scalatra-swagger init trace follows — see doc/swagger/swagger.md"
   )
@@ -92,8 +96,12 @@ override def initialize(config: ConfigT): Unit = {
   )
 
   try {
+    // EMPTY resourcePath ("") — Scalatra-Swagger computes paths as
+    // resourcePath + "/" + strippedRoutePath. With resourcePath = "" and
+    // absolute route paths like "/api/v3/repos/...", the result is
+    // "/api/v3/repos/{owner}/..." — single prefix, no double-prefixing.
     swagger.register(
-      "api", "/api/v3", Some(applicationDescription),
+      "api", "", Some(applicationDescription),
       this, swaggerConsumes, swaggerProduces, swaggerProtocols, swaggerAuthorizations
     )
     swaggerLogger.info("Swagger manual registration succeeded for ApiControllerBase")
@@ -109,6 +117,25 @@ operators reading the boot log can tell at a glance that the trace
 between the lines is expected. Do not redirect or suppress
 `System.err`; the trace must remain visible so future upstream
 behavior changes are diagnosable.
+
+### Why empty resourcePath
+
+Scalatra-Swagger's `SwaggerSupportSyntax.endpoints()` builds each
+operation's path as `resourcePath + "/" + strippedRoutePath` where
+`strippedRoutePath` strips the route literal's leading slash. This
+means:
+
+| `resourcePath` | Route literal | Path in `swagger.json` | Runtime dispatch |
+|---|---|---|---|
+| `"/api/v3"` | `/repos/:owner/:repository/issues` | `/api/v3/repos/{owner}/{repository}/issues` ❌ **Broken** — relative routes fail under `CompositeScalatraFilter` |
+| `"/api/v3"` | `/api/v3/repos/:owner/:repository/issues` | `/api/v3/api/v3/repos/{owner}/...` ❌ **Double-prefixed** |
+| `""` (empty) | `/api/v3/repos/:owner/:repository/issues` | `/api/v3/repos/{owner}/{repository}/issues` ✅ **Correct** — single prefix, no double-prefixing |
+
+The empty `resourcePath` approach keeps route path literals absolute
+(matching what GitBucket already uses), avoids double-prefixing, and
+preserves runtime dispatch under `CompositeScalatraFilter`. The
+`basePath` field in `swagger.json` is set by the `bathPath` override
+in `SwaggerResourcesApp` (see Section 1).
 
 ---
 
@@ -169,7 +196,8 @@ val getIssue =
     )
     .responseMessages(ResponseMessage(404, "Issue not found"))
 
-get("/repos/:owner/:repository/issues/:id", operation(getIssue))(referrersOnly { repository =>
+// Route literal starts with /api/v3 (absolute path, matching existing code)
+get("/api/v3/repos/:owner/:repository/issues/:id", operation(getIssue))(referrersOnly { repository =>
   // ...action body unchanged...
 })
 ```
@@ -185,23 +213,29 @@ import org.scalatra.swagger.{ResponseMessage, Swagger, SwaggerSupport}
 import org.scalatra.swagger.SwaggerSupportSyntax._
 ```
 
-### Path literals must be relative
+### Path literals must be absolute
 
 `ApiControllerBase.initialize` registers the resource with
-`resourcePath = "/api/v3"`. `scalatra-swagger` prepends that to every
-operation's path when it emits `swagger.json`. Therefore:
+`resourcePath = ""` (empty string). `scalatra-swagger` computes each
+operation's path as `resourcePath + "/" + strippedRoutePath`. With an
+empty `resourcePath`, the route path literal is preserved as-is.
 
-- The route literal **must not** start with `/api/v3`.
-- It must start with `/` followed by the resource-relative path
-  (e.g. `"/repos/:owner/:repository/issues/:id"`).
+Therefore:
 
-Runtime dispatch is unchanged because `ScalatraBootstrap` mounts the
-controller at `/api/v3`, so a route declared as
-`"/repos/:owner/..."` still serves `GET /api/v3/repos/:owner/...`.
+- The route literal **must** start with `/api/v3` — exactly matching
+  the absolute path used in existing GitBucket API routes.
+- Do **not** strip the `/api/v3` prefix from route literals; doing so
+  breaks runtime dispatch under `CompositeScalatraFilter` because
+  absolute catch-all 404 handlers (`get("/api/v3/*") { NotFound() }`)
+  match before relative routes.
 
-If `swagger.json` shows any path under `/api/v3/api/v3/...`, the route
-literal still has the prefix. Fix the literal — do **not** edit the
-resource registration.
+Runtime dispatch works because `CompositeScalatraFilter` receives the
+full request URI (e.g., `/api/v3/repos/owner/repo/issues`), and
+Scalatra matches absolute route paths against that full URI.
+
+If `swagger.json` shows any path under `/api/v3/api/v3/...`, the
+`resourcePath` is wrong (set to `"/api/v3"` instead of `""`). Fix the
+registration — do **not** change the route literals.
 
 ### Self-type / `SwaggerSupport`
 
@@ -334,18 +368,21 @@ val getIssue =
     )
     .responseMessages(ResponseMessage(404, "Issue not found"))
 
-get("/repos/:owner/:repository/issues/:id", operation(getIssue))(
+// Route literal starts with /api/v3 (absolute path, matching existing code)
+get("/api/v3/repos/:owner/:repository/issues/:id", operation(getIssue))(
   referrersOnly { repository => /* unchanged action */ }
 )
 ```
 
 Restart the container, re-run the test — **Green**.
 
-**Refactor.** Verify the standard anti-patterns from section 8 did
+**Refactor.** Verify the standard anti-patterns from section 9 did
 not creep in:
 
-- The route literal does not start with `/api/v3` (no
-  `/api/v3/api/v3/...` paths in `swagger.json`).
+- The route literal starts with `/api/v3` (matching existing code).
+- The `resourcePath` in `swagger.register()` is `""` (empty string,
+  not `"/api/v3"` — see section 3).
+- No `/api/v3/api/v3/...` paths appear in `swagger.json`.
 - The nickname (`"getIssue"`) is unique across the whole API.
 - No `protected implicit def swagger: Swagger` was added to the
   trait.
@@ -451,8 +488,8 @@ Notes on the table:
   after your change, you have broken `super.initialize(config)`
   (see section 3).
 - F3 guards path-literal hygiene — if it returns a non-zero count
-  after your change, you added a route literal that still starts
-  with `/api/v3` (see section 5, "Path literals must be relative").
+  after your change, the `resourcePath` in `swagger.register()` is not
+  empty (see section 3, "Why empty resourcePath").
 - F11 will return `null` until that specific route is annotated.
   That is expected for unannotated endpoints; what must **not**
   change between pre and post is whether the runtime call to that
@@ -623,10 +660,21 @@ this checklist.
   the fix is to make `super.initialize` run.
 - Do not introduce a second `Swagger` instance; everything must share
   `GitBucketSwagger`.
-- Do not register the `/api/v3` resource with a different
-  `resourcePath` (e.g. `"/"`) as a way to "fix" double-prefixing.
-  The resource path is `/api/v3`; route literals are relative.
+- Do not set `resourcePath` to anything other than `""` (empty string)
+  in `swagger.register()`. A non-empty `resourcePath` like `"/api/v3"`
+  causes double-prefixing when route path literals already contain
+  `/api/v3`. The `basePath` in `swagger.json` comes from the
+  `bathPath` override in `SwaggerResourcesApp`, not from `resourcePath`.
+- Do not strip `/api/v3` from route path literals. Route literals must
+  remain absolute under `CompositeScalatraFilter` — relative paths fail
+  because absolute catch-all 404 handlers match first.
 - Do not redeclare an abstract `swagger` member in any
   `Api*ControllerBase` trait; inherit it from `ApiControllerBase`.
 - Do not put `apiOperation[...]` anywhere except in the `transformers`
   list of a route declaration (via `operation(theVal)`).
+- Do not override `bathPath` in any class other than
+  `SwaggerResourcesApp`. The `bathPath` method name is a typo in
+  Scalatra-Swagger upstream — use the typo name, not `basePath`.
+- Do not annotate catch-all 404 handlers (e.g. `get("/api/v3/*")`) with
+  `apiOperation[...]`. They are dispatch handlers, not API documentation
+  targets, and must not appear in `swagger.json`.
