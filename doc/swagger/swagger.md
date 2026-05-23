@@ -103,7 +103,19 @@ get("/api/v3/repos/:owner/:repository/issues/:id",
     .responseMessages(ResponseMessage(404, "Issue not found"))) { ... }
 ```
 
-Where a pre-existing val-bound operation already exists in the codebase (e.g., `val getApiRoot = apiOperation[...]; get("...", operation(getApiRoot))`), that val-bound instance may be retained — do not rewrite it solely for style consistency. All **new** annotations must use the inline pattern.
+The codebase contains one pre-existing val-bound route (`listStatusesRoute` in `ApiRepositoryStatusControllerBase.scala`, see §3.7.4). This route-level val binding — where the entire `get(...)` expression is bound to a `val` with `apiOperation` inline in its transformer list — may be retained. Do not rewrite it solely for style consistency.
+
+The prohibited pattern is the **`operation(op)` extraction** — extracting just the `apiOperation` into a separate `val` and passing it via `operation(valName)`:
+
+```scala
+// PROHIBITED for new annotations: operation extraction
+val getIssueOp = apiOperation[ApiIssue]("getIssue")
+  .summary("...")
+  .parameters(...)
+get("/api/v3/repos/:owner/:repository/issues/:id", operation(getIssueOp)) { ... }
+```
+
+This extraction pattern decouples the operation definition from the route, making it harder to trace which operation belongs to which route. All **new** annotations must use the inline pattern shown in §3.7.1–§3.7.3, and the route-level val binding pattern shown in §3.7.4.
 
 ### 3.2 Nicknames must be globally unique
 
@@ -141,6 +153,126 @@ import org.scalatra.swagger.{ResponseMessage, Swagger, SwaggerSupport}
 import org.scalatra.swagger.SwaggerSupportSyntax._
 ```
 
+### 3.7 Annotation Examples
+
+Before/after pairs showing how bare routes transform into fully annotated Swagger endpoints. Each pair covers a distinct parameter pattern. The first three use the mandatory inline pattern; the fourth shows the pre-existing route-level val binding pattern from the codebase.
+
+#### 3.7.1 GET with path parameters — `getIssue`
+
+**Before (un-annotated route):**
+
+```scala
+get("/api/v3/repos/:owner/:repository/issues/:id") { ... }
+```
+
+**After (annotated route — inline pattern):**
+
+```scala
+get("/api/v3/repos/:owner/:repository/issues/:id",
+  apiOperation[ApiIssue]("getIssue")
+    .summary("Get a single issue")
+    .description("Returns a single issue by its ID for the specified repository")
+    .parameters(
+      pathParam[String]("owner").description("Repository owner"),
+      pathParam[String]("repository").description("Repository name"),
+      pathParam[Int]("id").description("Issue number")
+    )
+    .responseMessages(ResponseMessage(404, "Issue not found"))) { ... }
+```
+
+#### 3.7.2 GET with query parameters — `listIssues`
+
+**Before (un-annotated route):**
+
+```scala
+get("/api/v3/repos/:owner/:repository/issues") { ... }
+```
+
+**After (annotated route — inline pattern):**
+
+```scala
+get("/api/v3/repos/:owner/:repository/issues",
+  apiOperation[Seq[ApiIssue]]("listIssues")
+    .summary("List repository issues")
+    .description("Returns a list of issues for the specified repository")
+    .parameters(
+      pathParam[String]("owner").description("Repository owner"),
+      pathParam[String]("repository").description("Repository name"),
+      queryParam[String]("state").description("Issue state: open, closed, or all").allowableValues("open", "closed", "all"),
+      queryParam[String]("sort").description("Sort field: created, updated, or comments").allowableValues("created", "updated", "comments"),
+      queryParam[String]("direction").description("Sort direction: asc or desc").allowableValues("asc", "desc"),
+      queryParam[Int]("page").description("Page number for pagination"),
+      queryParam[Int]("per_page").description("Number of issues per page")
+    )
+    .responseMessages(ResponseMessage(404, "Repository not found"))) { ... }
+```
+
+#### 3.7.3 POST with body parameter — `createIssue`
+
+**Before (un-annotated route):**
+
+```scala
+post("/api/v3/repos/:owner/:repository/issues") { ... }
+```
+
+**After (annotated route — inline pattern):**
+
+```scala
+post("/api/v3/repos/:owner/:repository/issues",
+  apiOperation[ApiIssue]("createIssue")
+    .summary("Create an issue")
+    .description("Create a new issue in the specified repository")
+    .parameters(
+      pathParam[String]("owner").description("Repository owner"),
+      pathParam[String]("repository").description("Repository name"),
+      bodyParam[CreateIssuePayload].description("Issue data")
+    )
+    .responseMessages(
+      ResponseMessage(201, "Issue created"),
+      ResponseMessage(401, "Unauthorized"),
+      ResponseMessage(422, "Validation failed")
+    )) { ... }
+```
+
+#### 3.7.4 Val-bound route with legacy alias — `listStatusesRoute` / `listStatuses`
+
+This example comes from the existing codebase — `ApiRepositoryStatusControllerBase.scala`. Certain routes use a `val` binding pattern to share a single route definition across multiple dispatch paths (primary path + legacy alias). The annotation goes on the primary `val`; the legacy alias simply calls `.action()` on it.
+
+**Before (un-annotated val-bound route):**
+
+```scala
+val listStatusesRoute = get("/api/v3/repos/:owner/:repository/commits/:ref/statuses")(referrersOnly { repository =>
+  // ... response logic ...
+})
+
+get("/api/v3/repos/:owner/:repository/statuses/:ref") {
+  listStatusesRoute.action()
+}
+```
+
+**After (annotated val-bound route):**
+
+```scala
+val listStatusesRoute = get("/api/v3/repos/:owner/:repository/commits/:ref/statuses",
+  apiOperation[Seq[ApiCommitStatus]]("listStatuses")
+    .summary("List commit statuses for a ref")
+    .description("Returns commit statuses for a specific ref in the specified repository")
+    .parameters(
+      pathParam[String]("owner").description("Repository owner"),
+      pathParam[String]("repository").description("Repository name"),
+      pathParam[String]("ref").description("Ref to list statuses for (SHA, branch name, or tag name)")
+    )
+    .responseMessages(ResponseMessage(404, "Ref not found")))(referrersOnly { repository =>
+  // ... response logic ...
+})
+
+get("/api/v3/repos/:owner/:repository/statuses/:ref") {
+  listStatusesRoute.action()
+}
+```
+
+Only the primary `val` route binding receives the `apiOperation` annotation. The legacy alias route uses `.action()` to dispatch without a separate `apiOperation` — Scalatra-Swagger introspects the val binding to discover the operation, so the alias inherits the documentation automatically.
+
 ---
 
 ## 4. Anti-Patterns
@@ -153,7 +285,7 @@ Mandatory prohibitions:
 - **Do NOT** introduce a second `Swagger` instance — everything must share `GitBucketSwagger`
 - **Do NOT** register resource with `resourcePath = "/api/v3"` — use empty string `""` instead. `SwaggerResourcesApp` provides the `/api/v3` prefix via `bathPath` override
 - **Do NOT** redeclare an abstract `swagger` member in any annotated trait
-- **Do NOT** use val-bound pattern for **new** annotations (`val name = apiOperation[...]; get("...", operation(name))`) — use inline pattern instead. Pre-existing val-bound instances may be retained where they already exist in the codebase.
+- **Do NOT** use the `operation(op)` extraction pattern for **new** annotations (`val name = apiOperation[...]; get("...", operation(name))`) — use inline pattern instead. Pre-existing route-level val bindings (the entire route expression bound to a `val`, with `apiOperation` inline in the transformer list) may be retained where they already exist in the codebase — see §3.7.4 for the concrete example.
 - **Do NOT** override `bathPath` in any class other than `SwaggerResourcesApp`
 - **Do NOT** strip `/api/v3` from route path literals — they must remain absolute
 - **Do NOT** annotate catch-all 404 handlers (e.g., `get("/api/v3/*")`) with `apiOperation[...]`
@@ -352,85 +484,3 @@ If smoke tests reveal a pre-existing API regression:
 - Continue annotation work for unaffected endpoints
 - Pipeline-level failures (F1, F2, F3, F4, F5, F9, F10 returning 500) are blockers — stop until resolved
 
----
-
-## 11. Annotation Examples
-
-Before/after pairs showing how bare routes transform into fully annotated Swagger endpoints. Each pair covers a distinct parameter pattern:
-
-### 11.1 GET with path parameters — `getIssue`
-
-**Before (un-annotated route):**
-
-```scala
-get("/api/v3/repos/:owner/:repository/issues/:id") { ... }
-```
-
-**After (annotated route):**
-
-```scala
-get("/api/v3/repos/:owner/:repository/issues/:id",
-  apiOperation[ApiIssue]("getIssue")
-    .summary("Get a single issue")
-    .description("Returns a single issue by its ID for the specified repository")
-    .parameters(
-      pathParam[String]("owner").description("Repository owner"),
-      pathParam[String]("repository").description("Repository name"),
-      pathParam[Int]("id").description("Issue number")
-    )
-    .responseMessages(ResponseMessage(404, "Issue not found"))) { ... }
-```
-
-### 11.2 GET with query parameters — `listIssues`
-
-**Before (un-annotated route):**
-
-```scala
-get("/api/v3/repos/:owner/:repository/issues") { ... }
-```
-
-**After (annotated route):**
-
-```scala
-get("/api/v3/repos/:owner/:repository/issues",
-  apiOperation[Seq[ApiIssue]]("listIssues")
-    .summary("List repository issues")
-    .description("Returns a list of issues for the specified repository")
-    .parameters(
-      pathParam[String]("owner").description("Repository owner"),
-      pathParam[String]("repository").description("Repository name"),
-      queryParam[String]("state").description("Issue state: open, closed, or all").allowableValues("open", "closed", "all"),
-      queryParam[String]("sort").description("Sort field: created, updated, or comments").allowableValues("created", "updated", "comments"),
-      queryParam[String]("direction").description("Sort direction: asc or desc").allowableValues("asc", "desc"),
-      queryParam[Int]("page").description("Page number for pagination"),
-      queryParam[Int]("per_page").description("Number of issues per page")
-    )
-    .responseMessages(ResponseMessage(404, "Repository not found"))) { ... }
-```
-
-### 11.3 POST with body parameter — `createIssue`
-
-**Before (un-annotated route):**
-
-```scala
-post("/api/v3/repos/:owner/:repository/issues") { ... }
-```
-
-**After (annotated route):**
-
-```scala
-post("/api/v3/repos/:owner/:repository/issues",
-  apiOperation[ApiIssue]("createIssue")
-    .summary("Create an issue")
-    .description("Create a new issue in the specified repository")
-    .parameters(
-      pathParam[String]("owner").description("Repository owner"),
-      pathParam[String]("repository").description("Repository name"),
-      bodyParam[CreateIssuePayload].description("Issue data")
-    )
-    .responseMessages(
-      ResponseMessage(201, "Issue created"),
-      ResponseMessage(401, "Unauthorized"),
-      ResponseMessage(422, "Validation failed")
-    )) { ... }
-```
