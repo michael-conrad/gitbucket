@@ -181,11 +181,12 @@ the call is built and discarded — the route is not annotated.
 
 ### Required pattern
 
-Bind the operation to a `val`, then pass `operation(thatVal)` as a
-transformer:
+Pass the `apiOperation[...]` chain directly in the route's transformer
+list — inline, not bound to a `val`:
 
 ```scala
-val getIssue =
+// Route literal starts with /api/v3 (absolute path, matching existing code)
+get("/api/v3/repos/:owner/:repository/issues/:id",
   apiOperation[ApiIssue]("getIssue")
     .summary("Get a single issue")
     .description("Returns a single issue by its ID for the specified repository")
@@ -195,16 +196,18 @@ val getIssue =
       pathParam[Int]("id").description("Issue number")
     )
     .responseMessages(ResponseMessage(404, "Issue not found"))
-
-// Route literal starts with /api/v3 (absolute path, matching existing code)
-get("/api/v3/repos/:owner/:repository/issues/:id", operation(getIssue))(referrersOnly { repository =>
+)(referrersOnly { repository =>
   // ...action body unchanged...
 })
 ```
 
-Use the `val`-bound form for **every** route. Do not inline the
-`apiOperation[...]` chain into the `get(...)` call, even for short
-routes — uniformity across the ~150 endpoints is the point.
+Use the inline form for **every** route. Bind an operation to a `val`
+only when the same operation is reused across multiple route
+declarations (e.g., alias routes that share parameters and response
+type). For single-use routes — the vast majority — keep the
+`apiOperation[...]` chain directly in the transformer list. This
+matches the prevailing style in the existing `Api*ControllerBase`
+files and keeps each route self-contained.
 
 ### Required imports
 
@@ -354,11 +357,11 @@ Before annotation, the route is dispatched at runtime but absent
 from `swagger.json`; the assertion on the path or on `parameters`
 fails — **Red**.
 
-**Green.** In `ApiIssueControllerBase`, bind the operation to a
-`val` and pass `operation(...)` as a route transformer (section 5):
+**Green.** In `ApiIssueControllerBase`, pass the `apiOperation[...]`
+chain directly in the route's transformer list (section 5):
 
 ```scala
-val getIssue =
+get("/api/v3/repos/:owner/:repository/issues/:id",
   apiOperation[ApiIssue]("getIssue")
     .summary("Get a single issue")
     .parameters(
@@ -367,9 +370,7 @@ val getIssue =
       pathParam[Int]("id").description("Issue number")
     )
     .responseMessages(ResponseMessage(404, "Issue not found"))
-
-// Route literal starts with /api/v3 (absolute path, matching existing code)
-get("/api/v3/repos/:owner/:repository/issues/:id", operation(getIssue))(
+)(
   referrersOnly { repository => /* unchanged action */ }
 )
 ```
@@ -386,8 +387,8 @@ not creep in:
 - The nickname (`"getIssue"`) is unique across the whole API.
 - No `protected implicit def swagger: Swagger` was added to the
   trait.
-- `apiOperation[...]` is referenced only via `operation(getIssue)`
-  in the route's transformer list, never inside the action body.
+- `apiOperation[...]` appears directly in the route's transformer
+  list, never inside the action body.
 
 ### TDD ground rules for this codebase
 
@@ -671,7 +672,8 @@ this checklist.
 - Do not redeclare an abstract `swagger` member in any
   `Api*ControllerBase` trait; inherit it from `ApiControllerBase`.
 - Do not put `apiOperation[...]` anywhere except in the `transformers`
-  list of a route declaration (via `operation(theVal)`).
+  list of a route declaration — inline it directly, not via a
+  `val`-bound `operation(theVal)` wrapper.
 - Do not override `bathPath` in any class other than
   `SwaggerResourcesApp`. The `bathPath` method name is a typo in
   Scalatra-Swagger upstream — use the typo name, not `basePath`.
