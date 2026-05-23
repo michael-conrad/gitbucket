@@ -40,3 +40,10 @@ project/plugins/project/
 .vscode
 
 .worktrees/
+
+# OpenCode agent tools and temp
+.tools/
+tmp/
+
+# Screenshots and misc
+*.png
