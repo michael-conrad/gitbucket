@@ -47,3 +47,9 @@ tmp/
 
 # Screenshots and misc
 *.png
+
+/.issues/
+
+# OpenCode sub-repo — managed independently
+.opencode/
+
