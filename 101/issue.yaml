@@ -1,0 +1,8 @@
+title: '[SPEC] Weekly upstream-release watch job that files specs with dupe prevention'
+status: open
+labels:
+- needs-approval
+- spec-draft
+body: ''
+created_at: '2026-09-24T05:54:18+00:00'
+updated_at: '2026-09-24T05:54:18+00:00'
