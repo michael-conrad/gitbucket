@@ -79,6 +79,7 @@ def test_sc10_no_release_run_leaves_state_unchanged(tmp_path, monkeypatch) -> No
 
     def failing_create_issue(title: str, body: str, repo: str) -> dict:
         pytest.fail("no-release run must not file any issue")
+        raise AssertionError("unreachable: pytest.fail always raises")
 
     monkeypatch.setattr(module, "create_issue", failing_create_issue)
 
