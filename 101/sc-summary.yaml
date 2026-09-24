@@ -1,15 +1,15 @@
 sc_count: 10
 scs:
   - id: "SC-1"
-    description: "Weekly job trigger wired into app startup hook."
+    description: "A GitHub Actions workflow declares a schedule: POSIX cron trigger firing once per week (plus a workflow_dispatch manual trigger)."
     evidence_type: "behavioral"
     plan_item: 1
   - id: "SC-2"
-    description: "Overlapping runs serialized — no concurrent duplicate runs."
+    description: "Overlapping workflow runs serialized by a workflow-level concurrency group — no concurrent duplicate runs interleave the dupe search or state advance."
     evidence_type: "behavioral"
     plan_item: 2
   - id: "SC-3"
-    description: "Poll upstream releases/latest, extract tag_name, diff vs last-seen TAG to produce new-tag set."
+    description: "Job calls upstream releases/latest for gitbucket/gitbucket, extracts tag_name, and diffs it against the persisted last-seen TAG to produce the new-tag set."
     evidence_type: "behavioral"
     plan_item: 3
   - id: "SC-4"
@@ -17,7 +17,7 @@ scs:
     evidence_type: "behavioral"
     plan_item: 4
   - id: "SC-5"
-    description: "File exactly one spec issue per new release tag via existing issue-creation service."
+    description: "Exactly one spec issue filed per new release tag in michael-conrad/gitbucket via the GitHub API."
     evidence_type: "behavioral"
     plan_item: 5
   - id: "SC-6"
@@ -25,11 +25,11 @@ scs:
     evidence_type: "behavioral"
     plan_item: 6
   - id: "SC-7"
-    description: "Pre-filing dupe search keyed on release tag skips already-filed tags."
+    description: "Pre-filing dupe search keyed on release tag skips already-filed tags (existing issue — open or closed — with the tag in its title)."
     evidence_type: "behavioral"
     plan_item: 7
   - id: "SC-8"
-    description: "Last-seen TAG persisted only after a successful filing receipt; first-ever run bootstraps deterministically by filing the current latest tag and advancing state."
+    description: "Last-seen TAG persisted (committed to the state file) only after a successful filing receipt."
     evidence_type: "behavioral"
     plan_item: 8
   - id: "SC-9"
@@ -37,6 +37,6 @@ scs:
     evidence_type: "behavioral"
     plan_item: 9
   - id: "SC-10"
-    description: "Last-seen TAG retained across application restarts."
+    description: "Last-seen TAG retained across workflow runs — each run reads the committed state file from its checkout."
     evidence_type: "behavioral"
     plan_item: 10
