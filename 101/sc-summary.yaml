@@ -1,22 +1,42 @@
-sc_count: 5
+sc_count: 10
 scs:
   - id: "SC-1"
-    description: "Weekly job trigger wired into app startup hook; overlapping runs serialized."
+    description: "Weekly job trigger wired into app startup hook."
     evidence_type: "behavioral"
     plan_item: 1
   - id: "SC-2"
-    description: "Poll upstream releases/latest, extract tag_name, diff vs last-seen TAG; commit hashes never treated as releases."
+    description: "Overlapping runs serialized — no concurrent duplicate runs."
     evidence_type: "behavioral"
     plan_item: 2
   - id: "SC-3"
-    description: "File exactly one spec issue per new release tag via existing issue-creation service."
+    description: "Poll upstream releases/latest, extract tag_name, diff vs last-seen TAG to produce new-tag set."
     evidence_type: "behavioral"
     plan_item: 3
   - id: "SC-4"
-    description: "Idempotent: repeat run with unchanged last-seen TAG files zero issues; pre-file dupe search skips already-filed tags."
+    description: "Commit hashes and non-tag references never treated as releases (TAG-based detection only)."
     evidence_type: "behavioral"
     plan_item: 4
   - id: "SC-5"
-    description: "Last-seen TAG persisted only after filing receipt, monotonic advance, retained across restarts."
+    description: "File exactly one spec issue per new release tag via existing issue-creation service."
     evidence_type: "behavioral"
     plan_item: 5
+  - id: "SC-6"
+    description: "Repeat run with unchanged last-seen TAG files zero issues (idempotent)."
+    evidence_type: "behavioral"
+    plan_item: 6
+  - id: "SC-7"
+    description: "Pre-filing dupe search keyed on release tag skips already-filed tags."
+    evidence_type: "behavioral"
+    plan_item: 7
+  - id: "SC-8"
+    description: "Last-seen TAG persisted only after a successful filing receipt; first-ever run bootstraps deterministically by filing the current latest tag and advancing state."
+    evidence_type: "behavioral"
+    plan_item: 8
+  - id: "SC-9"
+    description: "Last-seen TAG advances monotonically — never regresses."
+    evidence_type: "behavioral"
+    plan_item: 9
+  - id: "SC-10"
+    description: "Last-seen TAG retained across application restarts."
+    evidence_type: "behavioral"
+    plan_item: 10
