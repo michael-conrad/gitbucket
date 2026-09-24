@@ -14,6 +14,24 @@ on:
 concurrency:
   group: upstream-release-watch
 
+jobs:
+  release-watch:
+    runs-on: ubuntu-latest
+    # SC-3 (.issues/103): minimal permissions — exactly issues: write and
+    # contents: write, no broader scopes.
+    permissions:
+      issues: write
+      contents: write
+    steps:
+      # SC-2 (.issues/103): check out the repository before invoking the script.
+      - uses: actions/checkout@v4
+      # SC-4 (.issues/103): invoke the pipeline script inside the pinned uv
+      # container image (FR-3, NFR-1).
+      - name: Run release-watch pipeline
+        container:
+          image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+          entrypoint: uv run scripts/release-watch.py
+
 # SPDX-FileCopyrightText: 2026 Michael Conrad
 # SPDX-License-Identifier: MIT
 # Provenance: AI-generated
