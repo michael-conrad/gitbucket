@@ -1,18 +1,24 @@
 issue_number: 101
 artifact: concern-map
+# Revised per validate-findings.yaml category_4 (pipeline-initiated non-substantive fix):
+# owner_phase values now reference plan phases (1-4), not SC numbers; concern partition
+# aligns 1:1 with the plan's 4-phase decomposition.
 concerns:
   - concern: "scheduling"
-    owner_phase: "SC-01"
+    owner_phase: "Phase 1"
     boundary: "trigger only; no business logic"
+  - concern: "overlap serialization"
+    owner_phase: "Phase 1"
+    boundary: "concurrency group; single-run execution per group"
   - concern: "upstream polling"
-    owner_phase: "SC-02"
+    owner_phase: "Phase 2"
     boundary: "fetch release TAGS (releases/latest → tag_name) + diff vs last-seen TAG; no filing; commit hashes never counted as releases"
   - concern: "filing"
-    owner_phase: "SC-03"
+    owner_phase: "Phase 3"
     boundary: "createIssue call per new tag; no state mutation on failure"
   - concern: "idempotency/dupe guard"
-    owner_phase: "SC-04"
+    owner_phase: "Phase 3"
     boundary: "pre-file search + post-file verification"
   - concern: "state persistence"
-    owner_phase: "SC-05"
+    owner_phase: "Phase 4"
     boundary: "last-seen store; monotonic advance"

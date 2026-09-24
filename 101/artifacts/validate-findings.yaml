@@ -1,0 +1,48 @@
+# Validation findings for issue #101 plan (writing-plans --task validate)
+issue_number: 101
+validated_at: "2026-09-24"
+plan_path: .issues/101/plan.md
+solve_output: .issues/101/artifacts/solve-output.yaml (SAT)
+overall_status: PASS
+
+category_1_structural:
+  status: PASS
+  checks:
+    phase_table_required_columns: PASS
+    per_phase_numbered_steps: PASS
+    exit_criteria_sc_mapping: PASS
+
+category_2_skill_task_validity:
+  status: PASS
+  checks:
+    dispatch_strings_match_reference_card: PASS
+  advisory:
+    - "Plan steps 3-4 (pre-regression / pre-regression-verify) are labeled task-card but omit the explicit Dispatch prompt line; the canonical strings exist in implementation-workflow.md ('execute phase-0 task from test-driven-development' / 'execute verify task from verification-before-completion'). Non-blocking."
+
+category_3_sc_coverage:
+  status: PASS
+  checks:
+    all_scs_covered: PASS (SC-1..SC-10 -> C1..C10)
+    triplet_split_detection: PASS (no SC has RED/GREEN/COMMIT split across phases)
+
+category_4_concern_separation:
+  status: PASS
+  checks:
+    phases_align_with_concern_map: PASS
+    no_concern_shared_across_phases: PASS
+
+category_5_dag_validation:
+  status: PASS
+  checks:
+    no_cycles: PASS
+    all_phases_reachable: PASS
+    no_orphan_phases: PASS
+
+category_6_holistic_quality:
+  status: PASS
+  checks:
+    no_tbd_todo_placeholders: PASS
+    checkbox_format_all_steps: PASS
+    dispatch_mode_consistency: PASS
+
+finding_summary: "All 6 categories PASS; overall status PASS. One advisory: steps 3-4 lack explicit dispatch prompt lines (canonical strings exist in the reference card)."
