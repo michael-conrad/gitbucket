@@ -5,6 +5,7 @@ title: '[SPEC] Weekly upstream-release watch job that files specs with dupe prev
 status: open
 labels:
 - approved-for-for_pr
+- spec-cleared
 body: ''
 created_at: '2026-09-24T05:54:18+00:00'
-updated_at: '2026-09-24T13:41:26+00:00'
+updated_at: '2026-09-24T13:47:40+00:00'

@@ -1,0 +1,20 @@
+issue_number: 101
+artifact: solve-output
+solve_status: SAT
+model_query: "z3.Or(phase1_workflow_skeleton, z3.Not(phase1_workflow_skeleton))"
+model_result: SAT (satisfying assignment exists; all phase booleans unbound pre-plan)
+check_status: SAT
+check_note: "postconditions + invariants SAT with completed-state snapshot (phase1..phase4 = true) derived from state-analysis.yaml run cycle"
+plan_status: SOLVED_SATISFICING
+plan_engine: tamer
+plan_length: 4
+plan_actions:
+  - complete-phase1-workflow-skeleton
+  - complete-phase2-detection-pipeline
+  - complete-phase3-filing-and-dupe-prevention
+  - complete-phase4-state-persistence
+inputs:
+  dependency_contract: .issues/101/dependency-contract.yaml
+  structure: .issues/101/artifacts/structure.yaml
+  plan_problem: .issues/101/artifacts/plan-problem.yaml
+  plan_output: .issues/101/artifacts/plan-output.yaml

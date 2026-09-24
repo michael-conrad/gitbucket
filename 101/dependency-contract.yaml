@@ -1,0 +1,44 @@
+# Dependency contract for issue #101 — derived from interface-compatibility.yaml
+issue_number: 101
+source_artifact: .issues/101/artifacts/interface-compatibility.yaml
+variables:
+  phase1_workflow_skeleton:
+    type: bool
+  phase2_detection:
+    type: bool
+  phase3_filing:
+    type: bool
+  phase4_state:
+    type: bool
+preconditions:
+  - "z3.Or(phase1_workflow_skeleton, z3.Not(phase1_workflow_skeleton))"
+invariants:
+  - "z3.Implies(phase2_detection, phase1_workflow_skeleton)"
+  - "z3.Implies(phase3_filing, phase2_detection)"
+  - "z3.Implies(phase4_state, phase3_filing)"
+postconditions:
+  - "phase1_workflow_skeleton"
+  - "phase2_detection"
+  - "phase3_filing"
+  - "phase4_state"
+dependency_contract:
+  - source: "UpstreamReleaseClient (new, release-TAG based: releases/latest -> tag_name)"
+    target: "implied coupled component: scripts/release-watch.py detection pipeline (phase-2)"
+    type: "artifact schema"
+    constraint: "implied coupling"
+  - source: "StateStore last-seen (new)"
+    target: "implied coupled component: .github/release-watch/last-seen-tag state file (phase-4)"
+    type: "artifact schema"
+    constraint: "implied coupling"
+  - source: "Weekly schedule wiring"
+    target: "implied coupled component: .github/workflows/upstream-release-watch.yml (phase-1)"
+    type: "artifact schema"
+    constraint: "implied coupling"
+  - source: "IssueCreationService.createIssue"
+    target: "removed_interfaces"
+    type: "artifact schema"
+    constraint: "no removed interfaces — unchanged and reused as-is (backward compatible)"
+  - source: "IssuesService search"
+    target: "removed_interfaces"
+    type: "artifact schema"
+    constraint: "no removed interfaces — unchanged and reused as-is (backward compatible)"

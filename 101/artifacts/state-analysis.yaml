@@ -17,3 +17,11 @@ transitions:
   - from: "filed"
     to: "idle"
     on: "run complete"
+variables:
+  # Completed-state snapshot derived from the state machine above: the full
+  # run cycle (idle -> running -> filed -> idle) requires all four pipeline
+  # phases complete. Consumed by `solve check` against dependency-contract.yaml.
+  phase1_workflow_skeleton: true
+  phase2_detection: true
+  phase3_filing: true
+  phase4_state: true

@@ -1,0 +1,32 @@
+domain: upstream-release-watch-101
+fluents:
+  - name: phase1_done
+  - name: phase2_done
+  - name: phase3_done
+  - name: phase4_done
+actions:
+  - name: complete-phase1-workflow-skeleton
+    preconditions: []
+    effects:
+      - phase1_done
+  - name: complete-phase2-detection-pipeline
+    preconditions:
+      - phase1_done
+    effects:
+      - phase2_done
+  - name: complete-phase3-filing-and-dupe-prevention
+    preconditions:
+      - phase2_done
+    effects:
+      - phase3_done
+  - name: complete-phase4-state-persistence
+    preconditions:
+      - phase3_done
+    effects:
+      - phase4_done
+init: []
+goals:
+  - phase1_done
+  - phase2_done
+  - phase3_done
+  - phase4_done

@@ -1,0 +1,23 @@
+# Analysis summary for issue #101 (writing-plans --task analyze)
+spec_path: .issues/101/spec.md
+approval:
+  status: approved
+  label: approved-for-for_pr
+  source: .issues/101/issue.yaml labels
+success_criteria:
+  count: 10
+  ids: [SC-1, SC-2, SC-3, SC-4, SC-5, SC-6, SC-7, SC-8, SC-9, SC-10]
+artifacts:
+  blast-radius.yaml: present
+  concern-map.yaml: present
+  code-path-inventory.yaml: present
+  cross-cutting-matrix.yaml: present
+  interface-compatibility.yaml: present
+  state-analysis.yaml: present
+  testability-assessment.yaml: present
+scope_findings:
+  - ".github/workflows/ exists (greenfield file upstream-release-watch.yml not yet created — expected for greenfield)"
+  - "scripts/ does not exist yet (greenfield — parent dir will be created by implementation; expected)"
+  - ".github/release-watch/ does not exist yet (greenfield — parent dir will be created by implementation; expected)"
+  - "Spec is greenfield: no src/main changes; all affected paths are new files, no existing files referenced as modified"
+summary: "Spec #101 exists and is approved (approved-for-for_pr). All 7 required analytical artifacts present. 10 SCs defined. All affected paths are greenfield new files; parent directories scripts/ and .github/release-watch/ do not yet exist and will be created during implementation — recorded as expected greenfield findings, not blockers."

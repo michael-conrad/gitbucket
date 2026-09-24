@@ -1,0 +1,149 @@
+issue_number: 101
+artifact: structure
+phases:
+  - id: phase-1
+    name: Workflow skeleton (triggers + serialization)
+    scs: [SC-1, SC-2]
+    items:
+      - sc_id: SC-1
+        title: Weekly workflow trigger
+        red: "enforcement test asserting the workflow declares a weekly schedule: cron entry and a workflow_dispatch trigger — fails before implementation"
+        green: "create .github/workflows/upstream-release-watch.yml with on.schedule (weekly POSIX cron) plus on.workflow_dispatch"
+        verify: "test parses the workflow definition and asserts the weekly schedule and manual trigger exist"
+        commit: "workflow trigger + test"
+      - sc_id: SC-2
+        title: Overlap serialization guard
+        red: "enforcement test asserting a workflow-level concurrency group exists — fails before implementation"
+        green: "add concurrency: { group: upstream-release-watch } (default cancel-in-progress: false)"
+        verify: "test asserts the concurrency group; platform semantics guarantee single-run execution per group"
+        commit: "concurrency guard + test"
+    skill_task_selection:
+      - step: red
+        skill: test-driven-development
+        dispatch: "task(..., prompt: 'execute red task from test-driven-development')"
+      - step: green
+        skill: test-driven-development
+        dispatch: "task(..., prompt: 'execute green task from test-driven-development')"
+      - step: verify
+        skill: verification-before-completion
+        dispatch: "task(..., prompt: 'execute verify task from verification-before-completion')"
+      - step: commit
+        skill: (orchestrator)
+        dispatch: "orchestrator runs git add <files> && git commit directly — commit-inline"
+    depends_on: []
+  - id: phase-2
+    name: Tag-diff detection pipeline
+    scs: [SC-3, SC-4]
+    items:
+      - sc_id: SC-3
+        title: Tag-diff detection pipeline
+        red: "enforcement test asserting the poll/diff pipeline produces a new-tag set — fails before implementation"
+        green: "scripts/release-watch.py fetches releases/latest → tag_name and diffs it against the state file read from the checkout"
+        verify: "mocked-upstream integration test — tag yields the new-release set"
+        commit: "client + diff logic + test"
+      - sc_id: SC-4
+        title: Commit-hash-never-a-release exclusion
+        red: "enforcement test asserting a commit-hash reference is never treated as a release — fails before implementation"
+        green: "detection path accepts only tag-shaped values from tag_name; non-tag references yield an empty new-tag set"
+        verify: "integration test — a commit-hash reference yields an empty new-tag set"
+        commit: "exclusion guard + test"
+    skill_task_selection:
+      - step: red
+        skill: test-driven-development
+        dispatch: "task(..., prompt: 'execute red task from test-driven-development')"
+      - step: green
+        skill: test-driven-development
+        dispatch: "task(..., prompt: 'execute green task from test-driven-development')"
+      - step: verify
+        skill: verification-before-completion
+        dispatch: "task(..., prompt: 'execute verify task from verification-before-completion')"
+      - step: commit
+        skill: (orchestrator)
+        dispatch: "orchestrator runs git add <files> && git commit directly — commit-inline"
+    depends_on: [phase-1]
+  - id: phase-3
+    name: Filing and dupe prevention
+    scs: [SC-5, SC-6, SC-7]
+    items:
+      - sc_id: SC-5
+        title: Ticket filing
+        red: "enforcement test asserting one issue per new tag is filed in michael-conrad/gitbucket — fails before implementation"
+        green: "filing step in the script creating one issue per new tag via the GitHub API (GITHUB_TOKEN, issues: write)"
+        verify: "integration test observing one filed issue per tag"
+        commit: "filing logic + test"
+      - sc_id: SC-6
+        title: Repeat-run idempotency
+        red: "enforcement test asserting a repeat run files zero issues — fails before implementation"
+        green: "idempotency semantics — unchanged last-seen TAG means zero filings"
+        verify: "behavioral test — two consecutive runs, zero filings on second"
+        commit: "idempotency logic + test"
+      - sc_id: SC-7
+        title: Pre-filing dupe search
+        red: "enforcement test asserting an already-filed tag is skipped — fails before implementation"
+        green: "pre-file Search issues API query keyed on the tag (tag string in issue title, open or closed) + skip when present"
+        verify: "behavioral test — state containing an already-filed tag produces no new issue for it"
+        commit: "guard logic + test"
+    skill_task_selection:
+      - step: red
+        skill: test-driven-development
+        dispatch: "task(..., prompt: 'execute red task from test-driven-development')"
+      - step: green
+        skill: test-driven-development
+        dispatch: "task(..., prompt: 'execute green task from test-driven-development')"
+      - step: verify
+        skill: verification-before-completion
+        dispatch: "task(..., prompt: 'execute verify task from verification-before-completion')"
+      - step: commit
+        skill: (orchestrator)
+        dispatch: "orchestrator runs git add <files> && git commit directly — commit-inline"
+    depends_on: [phase-2]
+  - id: phase-4
+    name: State persistence
+    scs: [SC-8, SC-9, SC-10]
+    items:
+      - sc_id: SC-8
+        title: Post-receipt persistence
+        red: "enforcement test asserting state does not advance on filing failure — fails before implementation"
+        green: "state file written and committed (pushed with contents: write) only after a confirmed filing receipt"
+        verify: "integration test — failed filing leaves state unchanged; success commits the filed tag; absent/empty state file bootstraps by filing the current latest tag then advancing"
+        commit: "state store + test"
+      - sc_id: SC-9
+        title: Monotonic advance
+        red: "enforcement test asserting state cannot regress to an older tag — fails before implementation"
+        green: "monotonic advance rule in the state update logic"
+        verify: "behavioral test — an older tag after a newer one does not regress persisted state"
+        commit: "monotonic rule + test"
+      - sc_id: SC-10
+        title: State retention across workflow runs
+        red: "enforcement test asserting state survives a fresh run — fails before implementation"
+        green: "durable persistence via the committed state file; each run reads the committed state from its checkout"
+        verify: "integration test — fresh run with committed state present reads it; no-release run leaves state unchanged"
+        commit: "durable store + test"
+    skill_task_selection:
+      - step: red
+        skill: test-driven-development
+        dispatch: "task(..., prompt: 'execute red task from test-driven-development')"
+      - step: green
+        skill: test-driven-development
+        dispatch: "task(..., prompt: 'execute green task from test-driven-development')"
+      - step: verify
+        skill: verification-before-completion
+        dispatch: "task(..., prompt: 'execute verify task from verification-before-completion')"
+      - step: commit
+        skill: (orchestrator)
+        dispatch: "orchestrator runs git add <files> && git commit directly — commit-inline"
+    depends_on: [phase-3]
+dependency_dag:
+  edges:
+    - from: phase-1
+      to: phase-2
+      reason: "detection script runs inside the workflow job defined in phase-1"
+    - from: phase-2
+      to: phase-3
+      reason: "filing consumes the new-tag set produced by the detection pipeline"
+    - from: phase-3
+      to: phase-4
+      reason: "state advance only after confirmed filing receipt"
+verification:
+  triplet_colocation: "PASS — every SC has RED/GREEN/verify/commit within a single phase"
+  cross_phase_dependency: "PASS — no RED test depends on output committed in a later phase"
