@@ -1,0 +1,13 @@
+issue_number: 101
+artifact: testability-assessment
+strategy:
+  - sc_id: "SC-01"
+    method: "behavioral (trigger fires weekly; overlap serialized)"
+  - sc_id: "SC-02"
+    method: "integration (mock upstream returns tag_name like 4.48.0; empty set → no-op; commit-hash refs never treated as releases)"
+  - sc_id: "SC-03"
+    method: "integration (filing via createIssue; one issue per tag)"
+  - sc_id: "SC-04"
+    method: "behavioral (repeat run → zero filings)"
+  - sc_id: "SC-05"
+    method: "integration (restart → state retained, monotonic)"

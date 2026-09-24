@@ -1,0 +1,21 @@
+issue_number: 101
+artifact: interface-compatibility
+interfaces:
+  - name: "IssueCreationService.createIssue"
+    change: "unchanged"
+    compatibility: "backward compatible (reuse as-is)"
+  - name: "IssuesService search"
+    change: "unchanged"
+    compatibility: "backward compatible (reuse as-is)"
+  - name: "UpstreamReleaseClient (new, release-TAG based: releases/latest -> tag_name)"
+    change: "new"
+    compatibility: "internal only"
+  - name: "StateStore last-seen (new)"
+    change: "new"
+    compatibility: "internal only"
+  - name: "Weekly schedule wiring"
+    change: "new"
+    compatibility: "internal only"
+removed_interfaces: []
+breaking_changes: []
+dependency_contract: []

@@ -1,0 +1,32 @@
+issue_number: 101
+title: "[SPEC] Weekly upstream-release watch job that files specs with dupe prevention"
+remote_url: "https://github.com/michael-conrad/gitbucket/issues/101"
+inspected_at: "2026-09-24"
+method: "grep + file reads + live API check (srclight index unavailable — not indexed)"
+
+liv_verification:
+  - claim: "releases/latest on gitbucket/gitbucket is tag-anchored"
+    command: "curl -sL https://api.github.com/repos/gitbucket/gitbucket/releases/latest"
+    evidence: "html_url https://github.com/gitbucket/gitbucket/releases/tag/4.48.0 — latest published release is tag 4.48.0"
+    verified_at: "2026-09-24"
+
+constraint_update:
+  - "Binding developer constraint (2026-09-24): weekly job MUST detect upstream releases via release TAGS (e.g. 4.48.0), never raw commit hashes or intermediate commits. A ticket may be filed only for an actual published upstream release. Detection anchored to releases/latest tag (tag_name 4.48.0, assets include gitbucket.war verified live) is acceptable."
+
+affected_files:
+  - path: "src/main/scala/gitbucket/core/servlet/InitializeListener.scala"
+    symbol: "contextInitialized (Quartz block commented out)"
+    role: "app startup hook; Quartz scheduler code present but commented out — natural host for weekly job wiring"
+    verified: true
+  - path: "src/main/scala/gitbucket/core/service/ReleaseService.scala"
+    symbol: "getReleases / getRelease / ReleaseTag"
+    role: "local release read model; upstream-watch needs a NEW upstream fetch client (GitHub releases/latest tag lookup) — no existing upstream poll code"
+    verified: true
+  - path: "src/main/scala/gitbucket/core/service/IssueCreationService.scala"
+    symbol: "createIssue(owner, name, userName, title, content, ...)"
+    role: "existing issue filing path the job would call to file specs"
+    verified: true
+  - path: "src/main/scala/gitbucket/core/service/IssuesService.scala"
+    symbol: "issue search by dupe key"
+    role: "dupe-prevention query surface before filing"
+    verified: true

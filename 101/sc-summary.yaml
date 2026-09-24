@@ -1,0 +1,22 @@
+sc_count: 5
+scs:
+  - id: "SC-1"
+    description: "Weekly job trigger wired into app startup hook; overlapping runs serialized."
+    evidence_type: "behavioral"
+    plan_item: 1
+  - id: "SC-2"
+    description: "Poll upstream releases/latest, extract tag_name, diff vs last-seen TAG; commit hashes never treated as releases."
+    evidence_type: "behavioral"
+    plan_item: 2
+  - id: "SC-3"
+    description: "File exactly one spec issue per new release tag via existing issue-creation service."
+    evidence_type: "behavioral"
+    plan_item: 3
+  - id: "SC-4"
+    description: "Idempotent: repeat run with unchanged last-seen TAG files zero issues; pre-file dupe search skips already-filed tags."
+    evidence_type: "behavioral"
+    plan_item: 4
+  - id: "SC-5"
+    description: "Last-seen TAG persisted only after filing receipt, monotonic advance, retained across restarts."
+    evidence_type: "behavioral"
+    plan_item: 5

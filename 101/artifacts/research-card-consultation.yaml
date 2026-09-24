@@ -1,0 +1,5 @@
+issue_number: 101
+checked_at: "2026-09-24"
+cards_dir: ".issues/research-cards/"
+result: "no-cards"
+finding: "No .issues/research-cards/ directory exists in this repo; no research card with confidence >= 0.7 to incorporate."

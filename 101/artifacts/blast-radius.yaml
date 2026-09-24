@@ -1,0 +1,13 @@
+issue_number: 101
+artifact: blast-radius
+phases:
+  - phase: "schedule wiring (SC-01)"
+    affected: ["InitializeListener.scala", "scheduler config"]
+    ripple: "low — additive startup wiring only"
+  - phase: "upstream poll + detect (SC-02)"
+    affected: ["new upstream release-tag client (releases/latest → tag_name)", "last-seen TAG state store"]
+    constraint: "TAG-only detection per binding update — commit hashes never treated as releases"
+    ripple: "medium — new network dependency"
+  - phase: "filing + dupe guard + state advance (SC-03/04/05)"
+    affected: ["IssueCreationService", "IssuesService search", "state store"]
+    ripple: "medium — touches issue creation path (additive use, no signature change)"

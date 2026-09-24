@@ -1,0 +1,21 @@
+issue_number: 101
+artifact: cross-cutting-matrix
+matrix:
+  - concern: "logging"
+    SC-01: "run start/skip"
+    SC-02: "fetch error → skip, no state change; non-tag refs rejected"
+    SC-03: "filing receipt"
+    SC-04: "dupe-skip"
+    SC-05: "state advance"
+  - concern: "error handling"
+    SC-01: "scheduler failure isolated"
+    SC-02: "unreachable → skip, no state change"
+    SC-03: "failure → no state advance"
+    SC-04: "n/a"
+    SC-05: "write failure → retry, no double-file"
+  - concern: "concurrency"
+    SC-01: "overlap guard"
+    SC-02: "read-only"
+    SC-03: "dupe-key unique guard"
+    SC-04: "idempotent"
+    SC-05: "atomic advance"

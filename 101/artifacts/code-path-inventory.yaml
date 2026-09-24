@@ -1,0 +1,13 @@
+issue_number: 101
+artifact: code-path-inventory
+paths:
+  - phase: "SC-01"
+    paths: ["InitializeListener.contextInitialized → scheduler.schedule(weekly)"]
+  - phase: "SC-02"
+    paths: ["new UpstreamReleaseClient.latestReleaseTag (releases/latest → tag_name, e.g. 4.48.0) → compare vs StateStore.getLastSeen"]
+  - phase: "SC-03"
+    paths: ["IssueCreationService.createIssue(owner, name, user, title, content)"]
+  - phase: "SC-04"
+    paths: ["IssuesService search by dupe key → skip if present"]
+  - phase: "SC-05"
+    paths: ["StateStore.setLastSeen(tag) after filing receipt"]

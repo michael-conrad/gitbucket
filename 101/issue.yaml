@@ -1,3 +1,6 @@
+remote_issue: 101
+remote_url: 'https://github.com/michael-conrad/gitbucket/issues/101'
+github_url: 'https://github.com/michael-conrad/gitbucket/issues/101'
 title: '[SPEC] Weekly upstream-release watch job that files specs with dupe prevention'
 status: open
 labels:

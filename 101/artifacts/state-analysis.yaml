@@ -1,0 +1,19 @@
+issue_number: 101
+artifact: state-analysis
+states: ["idle", "running", "skipped(upstream-down)", "filed", "dupe-skipped"]
+transitions:
+  - from: "idle"
+    to: "running"
+    on: "weekly trigger"
+  - from: "running"
+    to: "skipped(upstream-down)"
+    on: "fetch failure (state unchanged)"
+  - from: "running"
+    to: "filed"
+    on: "new release TAGS filed + last-seen TAG advanced (TAG value only, never commit SHA)"
+  - from: "running"
+    to: "dupe-skipped"
+    on: "no new tags (state unchanged)"
+  - from: "filed"
+    to: "idle"
+    on: "run complete"
