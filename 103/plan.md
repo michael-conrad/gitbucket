@@ -4,10 +4,11 @@ issue: 103
 title: "Wire GitHub Actions job into upstream-release-watch workflow"
 authorization_scope: for_pr
 pr_strategy: stacked
-phase_count: 2
+phase_count: 3
 dispatch:
   - phase-1: pre-regression, pre-regression-verify, red (test-driven-development), green (test-driven-development), post-regression (test-driven-development), verify (verification-before-completion), commit-inline (orchestrator)
-  - phase-2: red (test-driven-development), green (test-driven-development), verify (verification-before-completion), commit n/a (live evidence)
+  - phase-2: red (test-driven-development), green (test-driven-development), verify (verification-before-completion)
+  - phase-3: red (test-driven-development), green (test-driven-development), verify (verification-before-completion)
   - post: audit, z3-check (orchestrator), structural-checks (finishing-a-development-branch), pre-pr-gate (verification-before-completion), regression-check (test-driven-development), review-prep (git-workflow-pr), create-pr (git-workflow-pr), exec-summary (completion-core)
 ---
 
@@ -29,7 +30,7 @@ Add a `jobs:` section with one job to `.github/workflows/upstream-release-watch.
 
 ## Architecture
 
-One job (`release-watch`) appended to the existing workflow whose `on:`/`concurrency:` scaffolding is preserved untouched (NFR-2). Structural SCs (SC-1..SC-4) verified by pytest enforcement tests in `test/` parsing the workflow YAML; behavioral SCs (SC-5..SC-9) verified by live GitHub API observation on `dev` — dispatch acceptance, run success, single issue filing, state-file commit advance, and zero-dupe repeat dispatch. Phase 1 delivers the wiring (commits); phase 2 verifies it live (commit n/a — evidence from live runs).
+One job (`release-watch`) appended to the existing workflow whose `on:`/`concurrency:` scaffolding is preserved untouched (NFR-2). Structural SCs (SC-1..SC-4) verified by pytest enforcement tests in `test/` parsing the workflow YAML; behavioral SCs (SC-5..SC-9) verified by live GitHub API observation on `dev` — dispatch acceptance, run success, single issue filing, state-file commit advance, and zero-dupe repeat dispatch. Phase 1 delivers the wiring (commits); phases 2-3 verify it live (commit n/a — evidence from live runs).
 
 ## Files
 
@@ -41,7 +42,8 @@ One job (`release-watch`) appended to the existing workflow whose `on:`/`concurr
 | Phase | Name | Concern | SCs | Depends On | Step Range | Dispatch |
 |-------|------|---------|-----|------------|------------|----------|
 | 1 | workflow-structural-wiring | Add `jobs:` section with one job (checkout, permissions, container script invocation) | SC-1, SC-2, SC-3, SC-4 | — | 4-24 | direct (7, 12, 17, 22) + task-card (rest) |
-| 2 | live-dispatch-verification | Merge to dev, verify via live workflow_dispatch (acceptance, success, filing, state, idempotence) | SC-5, SC-6, SC-7, SC-8, SC-9 | 1 | 25-32 | task-card |
+| 2 | live-dispatch-acceptance | Merge to dev, verify dispatch accepted and run succeeds via live workflow_dispatch | SC-5, SC-6 | 1 | 25-29 | task-card |
+| 3 | pipeline-outcome | Verify pipeline behavior live: single issue filing, state-file commit advance, zero-dupe repeat dispatch | SC-7, SC-8, SC-9 | 2 | 30-33 | task-card |
 
 ## Admonishments
 
@@ -138,17 +140,17 @@ Items SC-2, SC-3, SC-4 follow the same daisy-chained cycle against the same file
 
 - [ ] 24. **VbC (**task-card**).** Execute the verify task from verification-before-completion — verify SC-1..SC-4 verdicts are PASS from recorded evidence; any DONE_WITH_CONCERNS coerces to FAIL; any EVIDENCE_TYPE_MISMATCH is a hard FAIL. BLOCK on any FAIL — do not proceed to Phase 2.
 
-**Concern transition:** Leaving workflow structural wiring → entering live dispatch verification. Phase 2 depends on Phase 1's merged workflow structure on `dev`.
+**Concern transition:** Leaving workflow structural wiring → entering live dispatch acceptance. Phase 2 depends on Phase 1's merged workflow structure on `dev`.
 
 ---
 
-## Phase 2 — Live Dispatch Verification
+## Phase 2 — Live Dispatch Acceptance
 
-**Concern:** Verify the wired workflow via live `workflow_dispatch` on `dev`: dispatch accepted (no 422), run completes success, first run files exactly one issue, state-file commit advances, repeat dispatch files zero new issues. Covered state transitions S1 → S2 → S3 → S4.
+**Concern:** Verify the wired workflow accepts a `workflow_dispatch` on `dev` (no 422) and the dispatched run completes with conclusion success. Covered state transitions S1 → S2 → S3.
 
 **Files:** none modified — live verification; all evidence recorded from live GitHub API runs.
 
-**SCs:** SC-5, SC-6, SC-7, SC-8, SC-9
+**SCs:** SC-5, SC-6
 
 **Dependencies:** Phase 1 (dispatchable workflow merged to `dev`)
 
@@ -159,50 +161,93 @@ Items SC-2, SC-3, SC-4 follow the same daisy-chained cycle against the same file
 **Exit conditions:**
 - Dispatch accepted without HTTP 422
 - Run observed completed with conclusion success
+
+**Code path coverage:** live GitHub Actions run path (workflow_dispatch API, job execution, container pull).
+
+**Cross-cutting SCs:** none — each live SC is a distinct observation point on the same run sequence.
+
+**Interface boundaries:** `gh workflow run upstream-release-watch.yml --ref dev`, `gh run view <run-id>`.
+
+**State transitions:** S1 (structurally complete) → S2 (dispatch-accepted) → S3 (run-success).
+
+**Cost frame:** Live dispatch verification costs bounded `gh` calls (dispatch, `run view`) — a red dispatch or failing run is caught immediately. Skipping costs the entire spec's purpose — a structurally plausible but undeliverable workflow, a false PASS worse than the original defect. Commit is n/a for these items — evidence is recorded from live runs per the spec Items.
+
+- [ ] 25. **RED for SC-5 (live probe) (**task-card**).** Execute the red task from test-driven-development for live context — live probe on `dev` before merge: if the phase-1 wiring is not yet merged, dispatch returns HTTP 422 (the documented RED state); confirm the 422 signature exists. **→ SC-5**
+- [ ] 26. **GREEN for SC-5 (**task-card**).** Execute the green task from test-driven-development for live context — after the phase-1 workflow file is merged to `dev`, dispatch the workflow live via `gh workflow run ... --ref dev`; exit 0, no 422. **→ SC-5**
+- [ ] 27. **Verify SC-5 (live) (**task-card**).** Execute the verify task from verification-before-completion — record live dispatch evidence (exit code, absence of 422). Structural YAML evidence is NOT accepted for this SC. **→ SC-5**
+- [ ] 28. **RED+GREEN+Verify for SC-6 (live) (**task-card**).** Execute the red/green/verify cycle from test-driven-development + verification-before-completion for the run outcome — RED state was no dispatchable run at all; poll `gh run view <run-id>` until `status: completed`, record `conclusion: success`. **→ SC-6**
+
+#### Phase 2 Completion Block (VbC)
+
+- [ ] 29. **VbC (**task-card**).** Execute the verify task from verification-before-completion — verify SC-5, SC-6 verdicts are PASS from live-run evidence artifacts; DONE_WITH_CONCERNS coerces to FAIL; EVIDENCE_TYPE_MISMATCH (structural evidence for a live SC) is a hard FAIL. BLOCK on any FAIL — do not proceed to Phase 3.
+
+**Concern transition:** Leaving live dispatch acceptance → entering pipeline outcome verification. Phase 3 depends on Phase 2's successful run on `dev`.
+
+---
+
+## Phase 3 — Pipeline Outcome Verification
+
+**Concern:** Verify the pipeline behavior of the successful run: exactly one issue filed for the latest upstream tag, state-file commit advance, and zero-dupe repeat dispatch. Covered state transitions S3 → S4.
+
+**Files:** none modified — live verification; all evidence recorded from live GitHub API runs and git history.
+
+**SCs:** SC-7, SC-8, SC-9
+
+**Dependencies:** Phase 2 (successful run on `dev`)
+
+**Entry conditions:**
+- Phase 2 VbC passed (SC-5, SC-6 both PASS)
+- Successful dispatched run exists on `dev`
+
+**Exit conditions:**
 - Exactly one new issue filed for the latest upstream tag
 - State-file commit history shows `.github/release-watch/last-seen-tag` advanced
 - Repeat dispatch files zero new issues
 
-**Code path coverage:** live GitHub Actions run path (workflow_dispatch API, job execution, container pull), script pipeline path (poll → dupe search → file issue → state commit), issue-list observation path.
+**Code path coverage:** script pipeline path (poll → dupe search → file issue → state commit), issue-list observation path, state-file git history path.
 
 **Cross-cutting SCs:** none — each live SC is a distinct observation point on the same run sequence.
 
-**Interface boundaries:** `gh workflow run upstream-release-watch.yml --ref dev`, `gh run view <run-id>`, `gh issue list` in michael-conrad/gitbucket, state file `.github/release-watch/last-seen-tag` git history.
+**Interface boundaries:** `gh issue list` in michael-conrad/gitbucket, `gh workflow run` repeat dispatch, state file `.github/release-watch/last-seen-tag` git history.
 
-**State transitions:** S1 (structurally complete) → S2 (dispatch-accepted) → S3 (run-success + filed + state-advanced) → S4 (idempotent-repeat-verified).
+**State transitions:** S3 (run-success) → S3a (filed + state-advanced) → S4 (idempotent-repeat-verified).
 
-**Cost frame:** Live dispatch verification costs bounded `gh` calls (dispatch, `run view`, `issue list`) — a red run, duplicate filing, or non-advancing state file is caught immediately. Skipping costs the entire spec's purpose — a structurally plausible but undeliverable workflow, a false PASS worse than the original defect. Commit is n/a for these items — evidence is recorded from live runs per the spec Items.
+**Cost frame:** Pipeline outcome verification costs bounded `gh` calls and git history checks (`issue list`, repeat dispatch, state-file log) — duplicate filing or non-advancing state file is caught immediately. Skipping costs the entire spec's purpose — a run that succeeds but silently fails to file issues or advance state, a false PASS worse than the original defect. Commit is n/a for these items — evidence is recorded from live runs per the spec Items.
 
-- [ ] 25. **RED for SC-5 (live probe) (**task-card**).** Live probe on `dev` — if the phase-1 wiring is not yet merged, dispatch returns HTTP 422 (the documented RED state); confirm the 422 signature exists before merge. **→ SC-5**
-- [ ] 26. **GREEN for SC-5 (**task-card**).** Execute the green task from test-driven-development for live context — after the phase-1 workflow file is merged to `dev`, dispatch the workflow live via `gh workflow run ... --ref dev`; exit 0, no 422. **→ SC-5**
-- [ ] 27. **Verify SC-5 (live) (**task-card**).** Execute the verify task from verification-before-completion — record live dispatch evidence (exit code, absence of 422). Structural YAML evidence is NOT accepted for this SC. **→ SC-5**
-- [ ] 28. **Observe SC-6 (**task-card**).** Poll `gh run view <run-id>` until `status: completed`, record conclusion — RED state was no dispatchable run at all; GREEN is `conclusion: success`. **→ SC-6**
-- [ ] 29. **Observe SC-7 (**task-card**).** Record `gh issue list` in michael-conrad/gitbucket — exactly one new issue referencing the latest upstream tag from this run. **→ SC-7**
-- [ ] 30. **Observe SC-8 (**task-card**).** Record git history of `.github/release-watch/last-seen-tag` — post-filing commit advanced the state file to the received tag. **→ SC-8**
-- [ ] 31. **Observe SC-9 (**task-card**).** Execute the verify task from verification-before-completion for the repeat dispatch — second `gh workflow run` dispatch, `gh run view` completed, `gh issue list` shows zero new issues. **→ SC-9**
+- [ ] 30. **Verify SC-7 (live) (**task-card**).** Execute the red/green/verify cycle from test-driven-development + verification-before-completion — RED state was zero filed issues pre-run; record `gh issue list` in michael-conrad/gitbucket showing exactly one new issue referencing the latest upstream tag from this run. **→ SC-7**
+- [ ] 31. **Verify SC-8 (live) (**task-card**).** Execute the red/green/verify cycle from test-driven-development + verification-before-completion — RED state was state file at prior tag; record git history of `.github/release-watch/last-seen-tag` showing the post-filing commit advanced the state file to the received tag. **→ SC-8**
+- [ ] 32. **Verify SC-9 (live) (**task-card**).** Execute the red/green/verify cycle from test-driven-development + verification-before-completion — RED state was a fresh state (would file again); execute the verify task from verification-before-completion for the repeat dispatch — second `gh workflow run` dispatch, `gh run view` completed, `gh issue list` shows zero new issues. **→ SC-9**
 
-#### Phase 2 Completion Block (VbC)
+#### Phase 3 Completion Block (VbC)
 
-- [ ] 32. **VbC (**task-card**).** Execute the verify task from verification-before-completion — verify SC-5..SC-9 verdicts are PASS from live-run evidence artifacts; DONE_WITH_CONCERNS coerces to FAIL; EVIDENCE_TYPE_MISMATCH (structural evidence for a live SC) is a hard FAIL. BLOCK on any FAIL — do not proceed to Post-Implementation.
+- [ ] 33. **VbC (**task-card**).** Execute the verify task from verification-before-completion — verify SC-7..SC-9 verdicts are PASS from live-run evidence artifacts; DONE_WITH_CONCERNS coerces to FAIL; EVIDENCE_TYPE_MISMATCH (structural evidence for a live SC) is a hard FAIL. BLOCK on any FAIL — do not proceed to Post-Implementation.
 
-**Concern transition:** Leaving live dispatch verification → entering post-implementation (audit, structural checks, pre-PR gate, review prep, PR creation). Post-implementation depends on all SC verdicts PASS.
+**Concern transition:** Leaving pipeline outcome verification → entering post-implementation (audit, structural checks, pre-PR gate, review prep, PR creation). Post-implementation depends on all SC verdicts PASS.
 
 ---
 
 ## Post-Implementation (once per plan)
 
-- [ ] 33. **Audit (**task-card**).** Execute the verification-audit DiMo investigator from audit (read the audit verification-audit-investigator task first), followed by validator, evaluator, arbiter in sequence — adversarial audit of the deliverable.
-- [ ] 34. **Z3 check (**direct**).** Run `.opencode/tools/solve check` directly against the phase state contract.
-- [ ] 35. **Structural checks (**task-card**).** Execute the checklist task from finishing-a-development-branch — lint, typecheck, and finishing checklist.
-- [ ] 36. **Pre-PR gate (**task-card**).** Execute the verify task from verification-before-completion — reads all SC verdicts, BLOCKs if any FAIL.
-- [ ] 37. **Regression check (**task-card**).** Execute the phase-4 task from test-driven-development — final regression check before PR.
-- [ ] 38. **Review prep (**task-card**).** Execute the review-prep task from git-workflow-pr (read the git-workflow-pr review-prep task first).
-- [ ] 39. **Create PR (**task-card**).** Execute the create task from git-workflow-pr — stacked PR targeting the trunk; halt after creation (merge is human-only).
-- [ ] 40. **Executive summary (**task-card**).** Execute the completion task from completion-core — emit `plan_created` lifecycle event with `plan_file` and `phase_count`.
+- [ ] 34. **Audit (**task-card**).** Execute the verification-audit DiMo investigator from audit (read the audit verification-audit-investigator task first), followed by validator, evaluator, arbiter in sequence — adversarial audit of the deliverable.
+- [ ] 35. **Z3 check (**direct**).** Run `.opencode/tools/solve check` directly against the phase state contract.
+- [ ] 36. **Structural checks (**task-card**).** Execute the checklist task from finishing-a-development-branch — lint, typecheck, and finishing checklist.
+- [ ] 37. **Pre-PR gate (**task-card**).** Execute the verify task from verification-before-completion — reads all SC verdicts, BLOCKs if any FAIL.
+- [ ] 38. **Regression check (**task-card**).** Execute the phase-4 task from test-driven-development — final regression check before PR.
+- [ ] 39. **Review prep (**task-card**).** Execute the review-prep task from git-workflow-pr (read the git-workflow-pr review-prep task first).
+- [ ] 40. **Create PR (**task-card**).** Execute the create task from git-workflow-pr — stacked PR targeting the trunk; halt after creation (merge is human-only).
+- [ ] 41. **Executive summary (**task-card**).** Execute the completion task from completion-core — emit `plan_created` lifecycle event with `plan_file` and `phase_count`.
 
 ---
 
 **Cost frames** (dark-prose-007; cost = defect-discovery-latency, not tool calls):
 
 - **Phase 1:** Structural enforcement tests cost minutes of execution time each — workflow-structure defects surface at CI time, before any live run. Skipping costs one full discovery latency cycle — the missing `jobs:` wiring is invisible until a live dispatch 422, exactly the defect state this spec removes.
-- **Phase 2:** Live dispatch verification costs bounded `gh` calls (dispatch, `run view`, `issue list`) — a red run, duplicate filing, or non-advancing state file is caught immediately. Skipping costs the entire spec's purpose — a structurally plausible but undeliverable workflow, a false PASS worse than the original defect.
+- **Phase 2:** Live dispatch verification costs bounded `gh` calls (dispatch, `run view`) — a red dispatch or failing run is caught immediately. Skipping costs the entire spec's purpose — a structurally plausible but undeliverable workflow, a false PASS worse than the original defect.
+- **Phase 3:** Pipeline outcome verification costs bounded `gh` calls and git history checks — duplicate filing or non-advancing state file is caught immediately. Skipping costs the spec's behavioral guarantees.
+
+## lifecycle_events
+
+- event: plan_created
+  timestamp: "2026-09-24T21:48:31Z"
+  plan_file: .issues/103/plan.md
+  phase_count: 3

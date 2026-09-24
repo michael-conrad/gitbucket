@@ -1,0 +1,74 @@
+# Validation findings for .issues/103 plan (re-validation after spec/plan revision)
+issue: 103
+plan: .issues/103/plan.md
+validated_at: "2026-09-24"
+
+category_1_structural:
+  status: PASS
+  checks:
+    - check: phase-table-columns
+      result: PASS
+      detail: Phase table has all required columns — Phase, Name, Concern, SCs, Depends On, Step Range, Dispatch (plan.md lines 40-46). 3 phases, phase_count matches frontmatter (3).
+    - check: phase-procedure-numbered-steps
+      result: PASS
+      detail: Each phase has a procedure section with numbered checkbox steps — Phase 1 (items 4-24), Phase 2 (items 25-29), Phase 3 (items 30-33). Pre-implementation (1-3) and Post-Implementation (34-41) sections present.
+    - check: exit-criteria-sc-mapping
+      result: PASS
+      detail: Exit Criteria section C1-C9 maps one-to-one to SC-1..SC-9.
+
+category_2_skill_task_validity:
+  status: PASS
+  checks:
+    - check: plan-skill-task-references-valid
+      result: PASS
+      detail: All skill+task references in plan.md match entries in implementation-workflow.md — pre-regression, pre-regression-verify, red/green/post-regression/verify (test-driven-development), verify (verification-before-completion), commit-inline (orchestrator), audit, z3-check (orchestrator), structural-checks (finishing-a-development-branch), pre-pr-gate (verification-before-completion), regression-check (test-driven-development), review-prep/create-pr (git-workflow-pr), exec-summary (completion-core). All match canonical dispatch strings. Live-context variants (steps 25-32) route red/green through test-driven-development and verify through verification-before-completion — valid owning skills.
+
+category_3_sc_coverage:
+  status: PASS
+  checks:
+    - check: all-scs-covered
+      result: PASS
+      detail: All 9 spec SCs covered — SC-1..SC-4 in Phase 1 (items 4-24), SC-5..SC-6 in Phase 2 (items 25-29), SC-7..SC-9 in Phase 3 (items 30-33).
+    - check: triplet-split
+      result: PASS
+      detail: No SC has RED/GREEN/COMMIT split across phases. SC-1..SC-4 full cycles in Phase 1 (e.g. SC-1: RED item 4, GREEN item 5, verify 6, commit 7). SC-5 RED/GREEN/verify all Phase 2 (items 25-27). SC-6 combined cycle item 28 (Phase 2). SC-7/8/9 combined cycles items 30-32 (Phase 3). Live-SC commit is n/a per spec Items (live verification) — no split.
+
+category_4_concern_separation:
+  status: PASS
+  checks:
+    - check: one-concern-per-phase
+      result: PASS
+      detail: Phase 1 → C1 (workflow-structure, SC-1..SC-4); Phase 2 → C2 (live-dispatch-acceptance, SC-5..SC-6); Phase 3 → C3 (pipeline-outcome, SC-7..SC-9). Matches concern-map.yaml owner_phase assignments exactly.
+    - check: no-duplicate-concerns
+      result: PASS
+      detail: Each concern has exactly one owner phase; no two phases address the same concern.
+
+category_5_dag_validation:
+  status: PASS
+  checks:
+    - check: no-cycles
+      result: PASS
+      detail: DAG edges phase-1 → phase-2 → phase-3 (plan Depends On column and structure.yaml dependency_dag). Strictly forward — acyclic.
+    - check: all-phases-reachable
+      result: PASS
+      detail: Phase 1 is the entry (no depends-on); phases 2 and 3 each depend on their predecessor — all reachable from start.
+    - check: no-orphan-phases
+      result: PASS
+      detail: No phase lacks both incoming and outgoing edges.
+
+category_6_holistic_quality:
+  status: PASS
+  checks:
+    - check: no-tbd-todo-placeholders
+      result: PASS
+      detail: No TBD/TODO/placeholder tokens in plan body.
+    - check: checkbox-format
+      result: PASS
+      detail: All 41 steps use `- [ ]` checkbox format.
+    - check: dispatch-mode-consistency
+      result: PASS
+      detail: Phase 1 mixes direct (commit-inline items 7/12/17/22) and task-card steps — permitted, commit-inline is orchestrator-direct per implementation-workflow reference card, all other phase-1 steps are task-card. Phases 2-3 are clean-room task-card only with no inline steps (commit n/a for live items). Post-implementation z3-check (item 35) is orchestrator-direct per the reference card. Pre-implementation coherence gate (item 1) is direct per orchestrator-level authorization verification. Consistent.
+
+overall_status: PASS
+finding_summary: All 6 categories PASS — structure valid, all skill+task references canonical, all 9 SCs covered with no triplet splits, one-concern-per-phase holds, DAG acyclic with full reachability, no placeholders with consistent dispatch modes.
+artifact_path: .issues/103/artifacts/validate-findings.yaml

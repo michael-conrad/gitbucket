@@ -1,9 +1,12 @@
-# Concern map for .issues/103 (backfill, retroactive)
+# Concern map for .issues/103 (backfill, retroactive; revised 2026-09-24)
 # Decomposes the 9 SCs into concern groups with phase boundaries.
+# Revision: split former Phase 2 into Phase 2 (C2 live-dispatch-acceptance)
+# and Phase 3 (C3 pipeline-outcome) — one-phase-one-concern.
 
 concerns:
   - id: C1
     name: workflow-structure
+    owner_phase: 1
     scs: [SC-1, SC-2, SC-3, SC-4]
     description: >
       Static workflow file structure: jobs: section, checkout step, token
@@ -13,6 +16,7 @@ concerns:
 
   - id: C2
     name: live-dispatch-acceptance
+    owner_phase: 2
     scs: [SC-5, SC-6]
     description: >
       The workflow_dispatch trigger accepts a run (no HTTP 422) and the run
@@ -21,6 +25,7 @@ concerns:
 
   - id: C3
     name: pipeline-outcome
+    owner_phase: 3
     scs: [SC-7, SC-8, SC-9]
     description: >
       End-to-end pipeline behavior: issue filing for the latest upstream
@@ -32,4 +37,4 @@ dependency_order: [C1, C2, C3]
 rationale: >
   Live dispatch (C2) can only be verified once the workflow structure (C1)
   is merged to dev; pipeline outcome (C3) requires a successful run (C2).
-  Sequential, non-overlapping.
+  Sequential, non-overlapping. Each concern maps to exactly one phase.
