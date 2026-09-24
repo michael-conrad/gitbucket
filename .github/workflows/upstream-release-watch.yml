@@ -1,0 +1,21 @@
+# Weekly upstream-release watch — .issues/101 SC-1, SC-2
+# Container and job steps are added by later SCs.
+
+name: upstream-release-watch
+
+on:
+  schedule:
+    # Weekly: 04:23 UTC every Monday (POSIX cron, 5 fields).
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+# SC-2: serialize overlapping runs — at most one run of this group executes
+# at any time; overlapping triggers pend (cancel-in-progress defaults to false).
+concurrency:
+  group: upstream-release-watch
+
+# SPDX-FileCopyrightText: 2026 Michael Conrad
+# SPDX-License-Identifier: MIT
+# Provenance: AI-generated
+#
+# Co-authored with AI: OpenCode (zai-org/GLM-5.3-Flash)
