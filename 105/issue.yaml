@@ -2,6 +2,121 @@ title: '[SPEC-FIX] Move container to job level in upstream-release-watch workflo
 status: open
 labels:
 - needs-approval
-body: ''
+body: '# [SPEC-FIX] Move container to job level in upstream-release-watch workflow
+
+
+  > Full spec and plan artifacts: https://github.com/michael-conrad/gitbucket/tree/issues-data/105/
+
+  > (placeholder — finalized after remote issue number is known)
+
+
+  ## Problem
+
+
+  The merged upstream-release-watch workflow (PR #104, merge commit 9f7b6e09 on dev)
+  places `container:` and `entrypoint:` at the **step** level, but GitHub Actions
+  only accepts `container:` as a **job-level** property. A live dispatch attempt on
+  dev returned HTTP 422:
+
+
+  > failed to parse workflow: (Line: 30, Col: 3): Unexpected value ''container''
+
+
+  Evidence artifact: `tmp/103/artifacts/phase2-sc5-live-dispatch.yaml`. The workflow
+  remains undispatchable — the release-watch pipeline never runs.
+
+
+  ## Scope
+
+
+  - Restructure the `release-watch` job in `.github/workflows/upstream-release-watch.yml`
+  to use job-level `container: {image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim}`
+
+  - Replace the invalid step-level `container:`/`entrypoint:` keys with a normal run
+  step: `uv run scripts/release-watch.py`
+
+  - Checkout step unchanged
+
+  - Permissions unchanged
+
+  - `on:`/`concurrency:` scaffolding unchanged
+
+  - Update enforcement test `test/test_workflow_jobs.py`
+
+
+  **Out of scope:** any change to release-watch script logic, issue-filing behavior,
+  or state-file format.
+
+
+  ## Approach
+
+
+  Move the container declaration from step level (invalid) to job level (the only
+  accepted position). The job declares `container:` with image `ghcr.io/astral-sh/uv:python3.12-bookworm-slim`;
+  the step that previously carried `container:`/`entrypoint:` becomes a plain `run:
+  uv run scripts/release-watch.py` step. This preserves the intended execution environment
+  while making the workflow parseable by GitHub Actions.
+
+
+  ## Root Cause (live-verified)
+
+
+  - PR #104 merged workflow with step-level `container:`/`entrypoint:` keys
+
+  - Live dispatch on dev → HTTP 422 parse failure (see evidence artifact above)
+
+
+  ## Impact
+
+
+  - **Risk:** job-level container changes default env/shell context — mitigate by
+  keeping the run step explicit (`uv run ...`) and re-verifying live dispatch
+
+  - **Risk:** state-file handling could double-file issues on re-run — mitigated by
+  SC-5 repeat-dispatch verification
+
+  - **Dependency:** `gh` CLI auth on dev; `workflow_dispatch` permission
+
+  - **Call to action:** approve this spec to unblock the release-watch pipeline, which
+  is currently entirely non-functional
+
+
+  ## Success Criteria
+
+
+  | SC | Criterion | Evidence | Type |
+
+  |----|-----------|----------|------|
+
+  | SC-1 | Workflow declares job-level `container.image` exactly `ghcr.io/astral-sh/uv:python3.12-bookworm-slim`
+  and no step-level container/entrypoint keys | Updated pytest enforcement test (test/test_workflow_jobs.py)
+  | behavioral: test execution |
+
+  | SC-2 | Live `workflow_dispatch` on dev accepted with exit 0, no HTTP 422 | Live
+  `gh workflow run` observation | behavioral: live run inspection |
+
+  | SC-3 | Dispatched run completes with conclusion `success` | `gh run view` | behavioral:
+  live run inspection |
+
+  | SC-4 | Run executes the pipeline: exactly one issue filed for the current latest
+  upstream tag (if state not current) or zero issues (state current) AND state file
+  `.github/release-watch/last-seen-tag` advanced to the received tag | `gh issue list`
+  + git history of the state file | behavioral: live observation |
+
+  | SC-5 | Repeat dispatch with state current files zero new issues | Second dispatch
+  + `gh issue list` | behavioral: live observation |
+
+
+  ## Affected Files
+
+
+  - `.github/workflows/upstream-release-watch.yml`
+
+  - `test/test_workflow_jobs.py`
+
+
+  ---
+
+  🤖 OpenCode (ollama-cloud/glm-5.3-flash) created'
 created_at: '2026-09-24T23:59:36+00:00'
-updated_at: '2026-09-24T23:59:36+00:00'
+updated_at: '2026-09-24T23:59:51+00:00'
