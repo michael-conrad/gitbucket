@@ -1,0 +1,29 @@
+# Solve output for .issues/103
+
+solve_status: SAT
+sat_status:
+  model_query: >
+    SAT — query z3.And(state_committed, repeat_zero_issues) under DAG
+    invariants (DC-1..DC-4 encoded as implications) yields a satisfying
+    assignment with all nine pipeline variables true (contract:
+    .issues/103/artifacts/z3-contract.yaml)
+  check_query: >
+    SAT — state file .issues/103/artifacts/state-s4.yaml (S4
+    idempotent-steady-state, all pipeline vars true) satisfies all
+    preconditions, postconditions, and invariants — both phases SAT
+    (SAT and SAT (+ postconditions + invariants))
+plan_status: SOLVED_SATISFICING
+planner_result:
+  engine: tamer
+  plan_length: 1
+  problem: .issues/103/artifacts/plan-problem.yaml
+  output: .issues/103/artifacts/plan-output.yaml
+  note: >
+    Planner reached the S4 goal state (idempotent-steady-state) from S0;
+    classical planning collapsed intermediate steps into a single reachable
+    action sequence — goal reachability is the verification target
+    (SOLVED_SATISFICING), not strict phase-ordered execution. The ordered
+    execution sequence is encoded in structure.yaml dependency_dag.
+contract_path: .issues/103/dependency-contract.yaml
+z3_contract_path: .issues/103/artifacts/z3-contract.yaml
+state_path: .issues/103/artifacts/state-s4.yaml

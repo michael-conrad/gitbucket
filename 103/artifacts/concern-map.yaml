@@ -1,0 +1,35 @@
+# Concern map for .issues/103 (backfill, retroactive)
+# Decomposes the 9 SCs into concern groups with phase boundaries.
+
+concerns:
+  - id: C1
+    name: workflow-structure
+    scs: [SC-1, SC-2, SC-3, SC-4]
+    description: >
+      Static workflow file structure: jobs: section, checkout step, token
+      permissions, container step invoking the script. All verified by
+      pytest enforcement tests parsing the YAML.
+    phase_boundary: Structural workflow edits + enforcement tests (Items 1-4)
+
+  - id: C2
+    name: live-dispatch-acceptance
+    scs: [SC-5, SC-6]
+    description: >
+      The workflow_dispatch trigger accepts a run (no HTTP 422) and the run
+      completes with conclusion success on dev. Verified live via gh CLI.
+    phase_boundary: Post-merge live verification on dev (Items 5-6)
+
+  - id: C3
+    name: pipeline-outcome
+    scs: [SC-7, SC-8, SC-9]
+    description: >
+      End-to-end pipeline behavior: issue filing for the latest upstream
+      tag, monotonic state-file commit, and zero-dupe repeat dispatch.
+      Verified live via gh run view / gh issue list and state-file git history.
+    phase_boundary: Post-success behavioral observation (Items 7-9)
+
+dependency_order: [C1, C2, C3]
+rationale: >
+  Live dispatch (C2) can only be verified once the workflow structure (C1)
+  is merged to dev; pipeline outcome (C3) requires a successful run (C2).
+  Sequential, non-overlapping.

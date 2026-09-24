@@ -1,0 +1,26 @@
+# Blast radius analysis for .issues/103 (backfill, retroactive)
+# Spec: Wire GitHub Actions job into upstream-release-watch workflow
+
+primary_files:
+  - path: .github/workflows/upstream-release-watch.yml
+    change: "extend with jobs: section (single job: checkout, permissions, container step running scripts/release-watch.py)"
+    verified: true
+    note: "exists on disk; has on/schedule, workflow_dispatch, concurrency; no jobs: section (verified by read)"
+
+secondary_files:
+  - path: test/  (new enforcement test file, e.g. test/test_workflow_job.py)
+    change: add pytest enforcement tests parsing the workflow YAML (SC-1..SC-4)
+    verified: true
+    note: test/ directory exists; sibling enforcement tests test_workflow_concurrency.py and test_workflow_triggers.py establish the pattern
+
+untouched_by_spec:
+  - scripts/release-watch.py  (invoked, never modified — spec Not Included)
+  - .github/release-watch/last-seen-tag  (written by the pipeline at runtime, not by the plan)
+
+blast_radius:
+  level: LOW
+  rationale: >
+    Change is additive to a single workflow YAML file plus a new test file.
+    No source code, build config, or runtime behavior outside the workflow
+    run is affected. Existing on:/concurrency: scaffolding is preserved
+    (NFR-2), so no trigger or concurrency semantics change.

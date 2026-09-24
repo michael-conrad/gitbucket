@@ -1,0 +1,42 @@
+# Code path inventory for .issues/103 (backfill, retroactive)
+
+sc_code_paths:
+  SC-1:
+    - path: .github/workflows/upstream-release-watch.yml
+      operation: "parse YAML, assert top-level jobs: key with >= 1 entry"
+      verification: pytest enforcement test (new, under test/)
+  SC-2:
+    - path: .github/workflows/upstream-release-watch.yml
+      operation: "parse job step list, assert actions/checkout@* step precedes script-invocation step"
+      verification: pytest enforcement test
+  SC-3:
+    - path: .github/workflows/upstream-release-watch.yml
+      operation: "parse job permissions block, assert exactly issues: write and contents: write"
+      verification: pytest enforcement test
+  SC-4:
+    - path: .github/workflows/upstream-release-watch.yml
+      operation: "parse container step, assert image ghcr.io/astral-sh/uv:python3.12-bookworm-slim and scripts/release-watch.py reference"
+      verification: pytest enforcement test
+  SC-5:
+    - path: GitHub Actions API (workflow_dispatch on dev)
+      operation: "gh workflow run upstream-release-watch.yml --ref dev — accepted, exit 0, no HTTP 422"
+      verification: live gh CLI call
+  SC-6:
+    - path: GitHub Actions API (run status on dev)
+      operation: "gh run view <run-id> — status: completed, conclusion: success"
+      verification: live gh CLI call
+  SC-7:
+    - path: michael-conrad/gitbucket issues + scripts/release-watch.py::file_new_tags
+      operation: "gh issue list — exactly one new issue for the current latest upstream tag"
+      verification: live gh CLI call
+  SC-8:
+    - path: .github/release-watch/last-seen-tag (git history) + scripts/release-watch.py::run_release_watch
+      operation: "observe state-file commit advancing to the received tag"
+      verification: live git-history inspection
+  SC-9:
+    - path: scripts/release-watch.py::search_issue_exists / compute_new_tags (dupe guard) invoked via repeat dispatch
+      operation: "second gh run view completed + gh issue list shows zero new issues"
+      verification: live gh CLI call
+
+script_entry_points_invoked_by_job:
+  - scripts/release-watch.py (module run — the job's container entrypoint)

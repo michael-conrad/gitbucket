@@ -1,0 +1,45 @@
+# Analysis summary for .issues/103 (backfill task, retroactive mode, writing-plans)
+
+spec_path: .issues/103/spec.md
+approval_status:
+  approved: true
+  label: approved-for-for_pr
+  source: .issues/103/issue.yaml labels
+
+success_criteria:
+  count: 9
+  scs: [SC-1, SC-2, SC-3, SC-4, SC-5, SC-6, SC-7, SC-8, SC-9]
+  evidence_types: behavioral (all 9)
+
+analytical_artifacts:
+  directory: .issues/103/artifacts/
+  directory_exists: true
+  backfill_mode: retroactive
+  blast-radius.yaml: backfilled
+  concern-map.yaml: backfilled
+  code-path-inventory.yaml: backfilled
+  cross-cutting-matrix.yaml: backfilled
+  interface-compatibility.yaml: backfilled (with dependency_contract)
+  state-analysis.yaml: backfilled
+  testability-assessment.yaml: backfilled
+  analysis-summary.yaml: updated by backfill
+
+scope_boundary_findings:
+  - file: .github/workflows/upstream-release-watch.yml
+    exists: true
+  - file: scripts/release-watch.py
+    exists: true
+  - dir: test/
+    exists: true
+    existing_workflow_tests:
+      - test_workflow_concurrency.py
+      - test_workflow_triggers.py
+  - findings: all referenced files exist; no missing-file findings
+
+summary: |
+  Spec exists and carries approved-for-for_pr label. 9 atomic SCs defined,
+  all behavioral. All 7 analytical artifacts were missing (directory absent);
+  backfilled in retroactive mode from the spec body with live verification
+  of affected files (.github/workflows/upstream-release-watch.yml exists
+  without jobs:; scripts/release-watch.py exists; test/ contains sibling
+  enforcement tests). No scope-boundary findings; blast radius LOW.

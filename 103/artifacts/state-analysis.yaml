@@ -1,0 +1,63 @@
+# State analysis for .issues/103 (backfill, retroactive)
+
+states:
+  - id: S0
+    name: workflow-undispatchable
+    description: >
+      Current state: workflow file has on:/concurrency: but no jobs: section.
+      workflow_dispatch returns HTTP 422; schedule fires run nothing. No run
+      exists; no issue filed; state file not advanced.
+    scs: baseline (RED state of SC-5..SC-9)
+
+  - id: S1
+    name: workflow-structurally-complete
+    description: >
+      jobs: section present with one job (checkout, permissions, container
+      script invocation). Dispatchable but not yet verified live.
+    entered_by: SC-1, SC-2, SC-3, SC-4 (structural items)
+
+  - id: S2
+    name: dispatch-accepted-and-successful
+    description: >
+      A dispatched run on dev is accepted (no 422) and completes with
+      conclusion success.
+    entered_by: SC-5, SC-6 (live dispatch + run observation)
+
+  - id: S3
+    name: state-persisted-issue-filed
+    description: >
+      Pipeline filed exactly one issue for the latest upstream tag and
+      committed the received tag to .github/release-watch/last-seen-tag.
+    entered_by: SC-7, SC-8 (first-run outcome)
+
+  - id: S4
+    name: idempotent-steady-state
+    description: >
+      Repeat dispatch with state current files zero new issues — the
+      steady-state for all subsequent weekly scheduled runs.
+    entered_by: SC-9 (repeat dispatch)
+
+transitions:
+  - from: S0
+    to: S1
+    trigger: merge of workflow structural items to dev
+  - from: S1
+    to: S2
+    trigger: gh workflow run dispatch accepted, run completes success
+  - from: S2
+    to: S3
+    trigger: pipeline detects new tag, files issue, commits state file
+  - from: S3
+    to: S4
+    trigger: second dispatch with state current files zero issues
+
+monotonic_invariant: >
+  .github/release-watch/last-seen-tag only advances (never regresses):
+  compute_new_tags guards on is_newer_tag; state file progression
+  S0 → S3 is one-way. No rollback of the state commit is defined or
+  required by the spec.
+
+failure_states:
+  - dispatch-422-persists (SC-5 FAIL → remediate; structural evidence not accepted)
+  - run-conclusion-failure (SC-6 FAIL → remediate before SC-7..SC-9)
+  - duplicate-filing (SC-9 FAIL → dupe-guard defect; live observation)

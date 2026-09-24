@@ -1,0 +1,135 @@
+# Phase structure for .issues/103 (backfill, retroactive)
+
+phases:
+  - id: phase-1
+    name: workflow-structural-wiring
+    description: >
+      Add the jobs: section with one job (release-watch) including checkout,
+      permissions, and container script-invocation steps. Covers state
+      transition S0 -> S1 (workflow-structurally-complete).
+    scs: [SC-1, SC-2, SC-3, SC-4]
+    items:
+      - item: I-1
+        sc: SC-1
+        cycle: [red, green, verify, commit]
+        files: [.github/workflows/upstream-release-watch.yml, test/]
+      - item: I-2
+        sc: SC-2
+        cycle: [red, green, verify, commit]
+        files: [.github/workflows/upstream-release-watch.yml, test/]
+      - item: I-3
+        sc: SC-3
+        cycle: [red, green, verify, commit]
+        files: [.github/workflows/upstream-release-watch.yml, test/]
+      - item: I-4
+        sc: SC-4
+        cycle: [red, green, verify, commit]
+        files: [.github/workflows/upstream-release-watch.yml, test/]
+    skill_task_selection:
+      - step: red
+        skill: test-driven-development
+        dispatch: task(..., prompt: "execute red task from test-driven-development")
+      - step: green
+        skill: test-driven-development
+        dispatch: task(..., prompt: "execute green task from test-driven-development")
+      - step: post-regression
+        skill: test-driven-development
+        dispatch: task(..., prompt: "execute phase-4 task from test-driven-development")
+      - step: verify
+        skill: verification-before-completion
+        dispatch: task(..., prompt: "execute verify task from verification-before-completion")
+      - step: commit-inline
+        skill: (orchestrator)
+        dispatch: orchestrator runs git add <files> && git commit directly
+
+  - id: phase-2
+    name: live-dispatch-verification
+    description: >
+      Merge structural wiring to dev, then verify via live workflow_dispatch:
+      dispatch accepted (no 422), run completes success, first-run files
+      exactly one issue, state-file commit advances, repeat dispatch files
+      zero new issues. Covers state transitions S1 -> S2 -> S3 -> S4.
+    scs: [SC-5, SC-6, SC-7, SC-8, SC-9]
+    items:
+      - item: I-5
+        sc: SC-5
+        cycle: [red-live-probe, green, verify-live, commit-n/a]
+        note: live gh workflow run dispatch on dev; no filesystem commit (live verification)
+      - item: I-6
+        sc: SC-6
+        cycle: [red, green, verify-live, commit-n/a]
+        note: gh run view observing conclusion success
+      - item: I-7
+        sc: SC-7
+        cycle: [red, green, verify-live, commit-n/a]
+        note: gh issue list — exactly one new issue for latest tag
+      - item: I-8
+        sc: SC-8
+        cycle: [red, green, verify-live, commit-n/a]
+        note: state-file commit history of .github/release-watch/last-seen-tag
+      - item: I-9
+        sc: SC-9
+        cycle: [red, green, verify-live, commit-n/a]
+        note: second dispatch + gh issue list — zero new issues
+    skill_task_selection:
+      - step: red
+        skill: test-driven-development
+        dispatch: task(..., prompt: "execute red task from test-driven-development")
+      - step: green
+        skill: test-driven-development
+        dispatch: task(..., prompt: "execute green task from test-driven-development")
+      - step: verify
+        skill: verification-before-completion
+        dispatch: task(..., prompt: "execute verify task from verification-before-completion")
+      - step: commit-inline
+        skill: (orchestrator)
+        dispatch: n/a for live-verification items (evidence recorded from live runs)
+
+dependency_dag:
+  edges:
+    - from: phase-1
+      to: phase-2
+      reason: >
+        SC-5 (live dispatch) GREEN depends on SC-1..SC-4 outputs merged to dev;
+        SC-6..SC-9 RED states depend on a dispatchable workflow (phase-1 output).
+
+triplet_colocation:
+  verified: true
+  detail: >
+    SC-1..SC-4 have RED/GREEN/COMMIT all in phase-1 (pytest enforcement tests
+    against the workflow YAML). SC-5..SC-9 have RED/GREEN/verify all in
+    phase-2 (live dispatch observation; commit is n/a per spec Items — live
+    verification with evidence recorded from live runs).
+
+cross_phase_dependency:
+  verified: true
+  detail: >
+    Only forward dependencies exist: phase-2 RED/GREEN depends on phase-1
+    outputs (workflow structure committed to dev). No phase-X RED depends on
+    phase-Y (Y > X) output.
+
+post_implementation:
+  - step: audit
+    skill: audit
+    dispatch: task(..., prompt: "execute verification-audit DiMo investigator from audit...")
+  - step: z3-check
+    skill: (orchestrator)
+    dispatch: orchestrator runs .opencode/tools/solve check directly
+  - step: structural-checks
+    skill: finishing-a-development-branch
+    dispatch: task(..., prompt: "execute checklist task from finishing-a-development-branch")
+  - step: pre-pr-gate
+    skill: verification-before-completion
+    dispatch: task(..., prompt: "execute verify task from verification-before-completion")
+  - step: regression-check
+    skill: test-driven-development
+    dispatch: task(..., prompt: "execute phase-4 task from test-driven-development")
+  - step: review-prep
+    skill: git-workflow-pr
+    dispatch: task(..., prompt: "execute review-prep from git-workflow-pr...")
+  - step: create-pr
+    skill: git-workflow-pr
+    dispatch: task(..., prompt: "execute create task from git-workflow-pr")
+  - step: exec-summary
+    skill: completion-core
+    dispatch: task(..., prompt: "execute completion task from completion-core")

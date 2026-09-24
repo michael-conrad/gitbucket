@@ -1,0 +1,86 @@
+# Planning problem for .issues/103 — derived from dependency-contract.yaml + state-analysis.yaml
+# Phases as actions: structural wiring -> dispatch -> filing -> repeat-verify.
+
+types:
+  - name: state
+
+objects:
+  - name: S0
+    type: state
+  - name: S1
+    type: state
+  - name: S2
+    type: state
+  - name: S3
+    type: state
+  - name: S4
+    type: state
+
+fluents:
+  - name: at
+    params:
+      - name: s
+        type: state
+    type: bool
+  - name: structural-complete
+    params:
+      - name: s
+        type: state
+    type: bool
+
+actions:
+  - name: wire-structural
+    params:
+      - name: from
+        type: state
+      - name: to
+        type: state
+    preconditions:
+      - "at(from)"
+    effects:
+      - "not at(from)"
+      - "at(to)"
+      - "structural-complete(to)"
+
+  - name: verify-dispatch
+    params:
+      - name: from
+        type: state
+      - name: to
+        type: state
+    preconditions:
+      - "at(from)"
+      - "structural-complete(from)"
+    effects:
+      - "not at(from)"
+      - "at(to)"
+
+  - name: file-and-commit
+    params:
+      - name: from
+        type: state
+      - name: to
+        type: state
+    preconditions:
+      - "at(from)"
+    effects:
+      - "not at(from)"
+      - "at(to)"
+
+  - name: verify-idempotence
+    params:
+      - name: from
+        type: state
+      - name: to
+        type: state
+    preconditions:
+      - "at(from)"
+    effects:
+      - "not at(from)"
+      - "at(to)"
+
+init:
+  - "at(S0)"
+
+goals:
+  - "at(S4)"

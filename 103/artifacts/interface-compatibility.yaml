@@ -1,0 +1,66 @@
+# Interface compatibility analysis for .issues/103 (backfill, retroactive)
+
+interface_boundaries:
+  - boundary: workflow-job-to-script
+    source: .github/workflows/upstream-release-watch.yml (job container step)
+    target: scripts/release-watch.py
+    contract: >
+      The container entrypoint invokes the script as a module run; the script
+      must be present in the checked-out repo (hence the checkout step SC-2).
+      Script path is scripts/release-watch.py — verified to exist.
+    compatibility: satisfied — script exists on dev with 16 passing enforcement tests (PR #102)
+
+  - boundary: script-to-github-api
+    source: scripts/release-watch.py
+    target: GitHub REST API (issues:write, contents:write)
+    contract: >
+      Script reads GITHUB_TOKEN from env (create_issue, search_issue_exists
+      raise RuntimeError when unset — fail-fast verified in source). The job
+      must declare permissions issues: write and contents: write (SC-3) so
+      GITHUB_TOKEN carries both scopes.
+    compatibility: to-be-established-by-SC-3
+
+  - boundary: script-to-state-file
+    source: scripts/release-watch.py
+    target: .github/release-watch/last-seen-tag (repo file, contents:write)
+    contract: >
+      DEFAULT_STATE_PATH = .github/release-watch/last-seen-tag (verified in
+      source line 24). Monotonic commit requires contents:write scope (SC-3)
+      and repo checkout (SC-2).
+    compatibility: to-be-established-by-SC-2/SC-3
+
+  - boundary: workflow-to-github-actions-runtime
+    source: "workflow on: triggers"
+    target: GitHub Actions workflow_dispatch + schedule
+    contract: >
+      Existing on:/workflow_dispatch:/concurrency: scaffolding is preserved
+      unmodified (NFR-2); adding jobs: makes the dispatch accepted (SC-5).
+    compatibility: to-be-established-by-SC-1
+
+dependency_contract:
+  derived_from: spec Affected Files + Success Criteria (real sources/targets)
+  contracts:
+    - id: DC-1
+      source: .github/workflows/upstream-release-watch.yml
+      target: scripts/release-watch.py
+      type_constraint: script must exist at repo-relative path scripts/release-watch.py inside the container working directory (requires actions/checkout step before invocation)
+      consumer: SC-2, SC-4
+      verified: true (file exists on dev)
+    - id: DC-2
+      source: scripts/release-watch.py (os.environ GITHUB_TOKEN)
+      target: job permissions block
+      type_constraint: GITHUB_TOKEN must carry issues:write and contents:write scopes; script raises RuntimeError when GITHUB_TOKEN unset (fail-fast)
+      consumer: SC-3, SC-7, SC-8
+      verified: true (source inspected)
+    - id: DC-3
+      source: container image ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+      target: scripts/release-watch.py runtime requirements
+      type_constraint: image must provide python3 (script runs without uv install steps; uv image guarantees python3.12 present)
+      consumer: SC-4
+      verified: true (image documented in spec Documentation Sources)
+    - id: DC-4
+      source: "workflow on: workflow_dispatch"
+      target: gh workflow run dispatch API
+      type_constraint: "workflow with on.workflow_dispatch and a jobs: section is dispatchable; absence of jobs: yields HTTP 422 (observed live in spec Problem section)"
+      consumer: SC-1, SC-5
+      verified: true (422 observed live)

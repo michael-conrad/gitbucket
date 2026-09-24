@@ -1,0 +1,62 @@
+# Testability assessment for .issues/103 (backfill, retroactive)
+
+evidence_types:
+  SC-1:
+    declared: behavioral
+    assessment: behavioral
+    rationale: "pytest parses the workflow YAML file at runtime — executes code, observable assertion outcome. Runtime-behavioral (agent-enforcement test)."
+    red_state: "no jobs: key — assertion fails against current file (verified: file has no jobs:)"
+  SC-2:
+    declared: behavioral
+    assessment: behavioral
+    rationale: runtime YAML parse asserting step ordering (checkout before script invocation).
+    red_state: no job exists — assertion fails
+  SC-3:
+    declared: behavioral
+    assessment: behavioral
+    rationale: runtime YAML parse asserting the exact permissions block.
+    red_state: permissions absent — assertion fails
+  SC-4:
+    declared: behavioral
+    assessment: behavioral
+    rationale: runtime YAML parse asserting container image string and script reference.
+    red_state: no container step — assertion fails
+  SC-5:
+    declared: behavioral
+    assessment: behavioral
+    rationale: live GitHub API dispatch — the 422 signature is directly observable; exit 0 after fix.
+    red_state: verified live in spec Problem section (HTTP 422 on dispatch to dev)
+  SC-6:
+    declared: behavioral
+    assessment: behavioral
+    rationale: gh run view observes run status/conclusion from the Actions runtime.
+    red_state: no dispatchable run exists
+  SC-7:
+    declared: behavioral
+    assessment: behavioral
+    rationale: gh issue list observes the pipeline's actual issue-filing output.
+    red_state: no run, no issue
+  SC-8:
+    declared: behavioral
+    assessment: behavioral
+    rationale: live git-history inspection of the state-file commit — runtime-behavioral observation of the monotonic commit.
+    red_state: state file not advanced by any run
+  SC-9:
+    declared: behavioral
+    assessment: behavioral
+    rationale: repeat dispatch + gh issue list proves idempotence at runtime.
+    red_state: no prior successful run exists
+
+substitution_risk: >
+  All 9 SCs are runtime-behavioral (substrate-determined). Structural
+  substitutes (grep/string matching for SC-5..SC-9, or metadata-only checks)
+  are EVIDENCE_TYPE_MISMATCH and report FAIL. SC-1..SC-4's pytest tests are
+  themselves behavioral (they execute code), not structural string checks.
+
+test_isolation: >
+  SC-1..SC-4 tests run in CI against the checked-out workflow file — no
+  network, no production data. SC-5..SC-9 run against the live GitHub API
+  (dev workflow, michael-conrad/gitbucket issues) — live behavioral
+  observation, no synthetic data.
+
+per_sc_tdd_cycles: 9 (one item per SC, per spec Items section)

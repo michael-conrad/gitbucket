@@ -1,0 +1,20 @@
+# Cross-cutting matrix for .issues/103 (backfill, retroactive)
+# Identifies SCs that span multiple concern groups.
+
+cross_cutting_scs: []
+
+analysis: >
+  No SC spans multiple concern groups. SC-1..SC-4 are pure structural
+  concerns (C1); SC-5..SC-6 are pure live-dispatch concerns (C2);
+  SC-7..SC-9 are pure pipeline-outcome concerns (C3). Each SC is verified
+  by exactly one method (enforcement test OR one live-observation channel),
+  and no SC requires artifacts from more than one concern. The workflow file
+  itself is shared by SC-1..SC-4, but within a single concern group.
+
+shared_resource_matrix:
+  .github/workflows/upstream-release-watch.yml:
+    scs: [SC-1, SC-2, SC-3, SC-4]
+    note: single file, single concern group (C1); commits per item are sequential
+  GITHUB_TOKEN (issues:write + contents:write):
+    scs: [SC-5, SC-6, SC-7, SC-8, SC-9]
+    note: runtime capability exercised only by live-run SCs (C2, C3)

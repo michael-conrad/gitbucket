@@ -1,0 +1,54 @@
+# Z3 contract for .issues/103 — derived from dependency-contract.yaml + state-analysis.yaml
+# Models state transitions S0 -> S4 as boolean workflow pipeline variables.
+
+variables:
+  jobs_section_present:
+    type: bool
+    nullable: false
+  checkout_step_present:
+    type: bool
+    nullable: false
+  permissions_declared:
+    type: bool
+    nullable: false
+  container_step_present:
+    type: bool
+    nullable: false
+  dispatch_accepted:
+    type: bool
+    nullable: false
+  run_success:
+    type: bool
+    nullable: false
+  issue_filed:
+    type: bool
+    nullable: false
+  state_committed:
+    type: bool
+    nullable: false
+  repeat_zero_issues:
+    type: bool
+    nullable: false
+
+# No preconditions: check validates the goal state (S4) against the DAG
+# invariants; the S0 baseline (all pipeline vars false) is the RED state, not a
+# constraint on the goal state. Encoding S0 as preconditions would contradict
+# the S4 postconditions in phase 2.
+preconditions: []
+
+invariants:
+  # DC-4: dispatch acceptance requires the full structural wiring (SC-1..SC-4)
+  - "z3.Implies(dispatch_accepted, z3.And(jobs_section_present, checkout_step_present, permissions_declared, container_step_present))"
+  # SC-6: run success requires dispatch accepted
+  - "z3.Implies(run_success, dispatch_accepted)"
+  # SC-7: issue filing requires a successful run (DC-2: GITHUB_TOKEN scopes)
+  - "z3.Implies(issue_filed, run_success)"
+  # SC-8: state commit happens with/after filing (DC-1: checkout precedes script invocation)
+  - "z3.Implies(state_committed, issue_filed)"
+  # SC-9: repeat dispatch clean requires state current
+  - "z3.Implies(repeat_zero_issues, state_committed)"
+  # monotonic invariant: issue_filed never regresses without state advance — filing and commit advance together
+  - "z3.Implies(issue_filed, state_committed)"
+
+postconditions:
+  - "z3.And(jobs_section_present, checkout_step_present, permissions_declared, container_step_present, dispatch_accepted, run_success, issue_filed, state_committed, repeat_zero_issues)"

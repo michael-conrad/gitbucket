@@ -1,0 +1,12 @@
+# State file for .issues/103 — S4 target (idempotent-steady-state) for solve check
+variables:
+  jobs_section_present: true
+  checkout_step_present: true
+  permissions_declared: true
+  container_step_present: true
+  dispatch_accepted: true
+  run_success: true
+  issue_filed: true
+  state_committed: true
+  repeat_zero_issues: true
+timestamp: "2026-09-24T21:37:00+00:00"
