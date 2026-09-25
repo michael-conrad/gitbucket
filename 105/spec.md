@@ -3,6 +3,16 @@
 > Full spec and plan artifacts: https://github.com/michael-conrad/gitbucket/tree/issues-data/105/
 > (placeholder — finalized after remote issue number is known)
 
+## User Intent / Original Prompt
+
+The developer observed that the workflow merged via PR #104 was still failing live dispatch with HTTP 422 after merge, and directed the agent to fix the workflow so the weekly upstream release watch actually runs end-to-end. The intent is a working, dispatchable `upstream-release-watch.yml` that runs the release-watch pipeline to completion — not merely a workflow that passes static tests. This fix exists to close the gap between "workflow file committed" and "workflow actually executes end-to-end on dev."
+
+## Key Design Decisions
+
+| Decision | Tradeoff |
+|----------|----------|
+| **Job-level `container:` over step-level `uses: docker://`** | Job-level container runs ALL steps of the `release-watch` job in the pinned uv image (`ghcr.io/astral-sh/uv:python3.12-bookworm-slim`), guaranteeing toolchain consistency for every step including checkout-adjacent commands and the `uv run` invocation. A step-level `uses: docker://` runs only that single step in the image while all other steps run on the bare runner. The job-level container is more deterministic for the uv-script invocation because the entire job executes under one pinned toolchain with no per-step environment mixing — and it is the only position GitHub Actions accepts `container:` at all (the step-level `container:` key is what caused the HTTP 422 parse failure being fixed here). |
+
 ## Approach Chosen
 
 Move the container declaration from step level (invalid) to job level (the only accepted position). The job declares `container:` with image `ghcr.io/astral-sh/uv:python3.12-bookworm-slim`; the step that previously carried `container:`/`entrypoint:` becomes a plain `run: uv run scripts/release-watch.py` step. This preserves the intended execution environment while making the workflow parseable by GitHub Actions.
@@ -166,6 +176,7 @@ One SC per item; each item completes its RED/GREEN/verify/commit cycle before th
 |------|--------|--------|---------------|
 | 2026-09-24 | Initial spec written (spec-creation create) | New SPEC-FIX for HTTP 422 parse failure | validation pipeline (approved-for-pr label) |
 | 2026-09-25 | Structural revision: added Alternatives Considered, Requirements (FR/NFR with SHALL), Items with TDD cycles, Dependencies, Traceability, Documentation Sources (4-column table + SC column), all-or-nothing Enforcement Gate statement, per-SC cost frames, Edge Cases, Not Included; decomposed SC-1 into SC-1/SC-2 (job-level present / step-level absent) and SC-4 into SC-5/SC-6/SC-7 (issue-count, state-advance, zero-issues with deterministic preconditions); removed 'Call to action' solicitation from Impact; added Approach Chosen preamble | Validation FAIL findings (1)-(4) | revise task dispatch (remediation of validation findings) |
+| 2026-09-25 | Second validation iteration: added 'Key Design Decisions' section (job-level container vs step-level `uses: docker://` tradeoff) and 'User Intent / Original Prompt' section (developer directive to fix PR #104 workflow's live HTTP 422 failure so the weekly upstream release watch runs end-to-end) | Second validation iteration — single FAIL: preamble missing 2 of 6 required fields | revise task dispatch (remediation of validation findings) |
 
 ---
 🤖 OpenCode (ollama-cloud/glm-5.3-flash) created
