@@ -277,3 +277,7 @@ Check your tool list for a tool named `task`.
 - [ ] 39. **HALT after PR creation** (**direct**) — do not merge; human-only merge (approval-gate-005)
 - [ ] 40. **exec-summary** (**task-card**) — dispatch `task(..., prompt: "execute completion task from completion-core")`
   - Generate completion executive summary; halt once at plan end
+
+## lifecycle_events
+
+- 2026-09-25T00:21:42Z — plan_created — plan file `.issues/105/plan.md`, 6 phases + post-implementation, authorization_scope for_pr, pr_strategy stacked

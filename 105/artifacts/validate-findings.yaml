@@ -1,0 +1,73 @@
+# Validate Findings — plan structural validation (issue 105)
+issue: 105
+generated: "2026-09-24"
+validator: writing-plans/tasks/validate
+overall_status: PASS
+
+category_1_structural:
+  status: PASS
+  checks:
+    phase_table_required_columns:
+      result: PASS
+      detail: "Phase table (plan.md:54-62) has all required columns: Phase, Name, Concern, SCs, Depends On, Step Range, Dispatch"
+    phase_procedure_numbered_steps:
+      result: PASS
+      detail: "Every phase (1-6 + Post-Implementation) has a Steps section with numbered checkbox steps"
+    exit_criteria_sc_mapping:
+      result: PASS
+      detail: "Exit Criteria section (plan.md:64-74) maps C1-C7 to SC-1..SC-7 plus C8 verification gate and C9 PR"
+
+category_2_skill_task_validity:
+  status: PASS
+  checks:
+    dispatch_strings_match_reference_card:
+      result: PASS
+      detail: "All skill+task references match skills/writing-plans/reference/implementation-workflow.md: pre-regression (phase-0 tdd), pre-regression-verify (verify vbc), red, green, post-regression (phase-4 tdd), verify, commit-inline (orchestrator), audit, z3-check (orchestrator solve check), structural-checks (checklist finishing), pre-pr-gate (verify vbc), regression-check (phase-4 tdd), review-prep (git-workflow-pr), create-pr (git-workflow-pr), exec-summary (completion-core)"
+    invalid_references: none
+
+category_3_sc_coverage:
+  status: PASS
+  checks:
+    every_sc_covered:
+      result: PASS
+      detail: "SC-1,SC-2→Phase 1; SC-3→Phase 2; SC-4→Phase 3; SC-5→Phase 4; SC-6→Phase 5; SC-7→Phase 6; Post-Implementation re-checks all. No uncovered SC."
+    duplicate_coverage: none
+    triplet_split:
+      result: PASS
+      detail: "SC-1/SC-2 triplet RED(step 6)/GREEN(step 8)/COMMIT(step 11) all in Phase 1 (single item per spec Items table — inseparable). SC-6 triplet RED(24)/GREEN(25)/COMMIT(28) all in Phase 5. Live-verify SCs (3,4,5,7) have verify+commit colocated in their single phase."
+
+category_4_concern_separation:
+  status: PASS
+  checks:
+    one_concern_per_phase:
+      result: PASS
+      detail: "Phase 1↔C1-workflow-structure; Phase 2↔C2-live-dispatch-parseability; Phase 3↔C3-run-success; Phase 4↔C4-issue-filing; Phase 5↔C5-state-advance; Phase 6↔C6-idempotency (concern-map.yaml)"
+    no_two_phases_same_concern:
+      result: PASS
+      detail: "Each concern id maps to exactly one phase; Post-Implementation is the composite re-check phase (declared concern: audit/checks/PR/completion, not an SC concern)"
+
+category_5_dag_validation:
+  status: PASS
+  checks:
+    no_cycles:
+      result: PASS
+      detail: "Edges: 1→2, 2→3, 3→4, 1→5, 4→6, {1-6}→post. Acyclic (confirmed by solve-output.yaml plan_plan result SOLVED_SATISFICING with a valid topological order)"
+    all_reachable:
+      result: PASS
+      detail: "All 6 phases + post reachable from Phase 1 (start node, no incoming edge by design as first phase)"
+    no_orphans:
+      result: PASS
+      detail: "Phase 5 has incoming edge 1→5 (terminal node, not orphan); all other phases have both incoming and outgoing edges"
+
+category_6_holistic_quality:
+  status: PASS
+  checks:
+    no_tbd_todo_placeholders:
+      result: PASS
+      detail: "grep -nEi 'TBD|TODO|FIXME|XXX' on plan.md returned zero matches"
+    checkbox_format:
+      result: PASS
+      detail: "All 40 numbered steps use '- [ ]' checkbox format"
+    dispatch_mode_consistency:
+      result: PASS
+      detail: "Frontmatter dispatch block declares mixed direct+task-card mode per phase matching the step labels; every task-card step carries a canonical dispatch string, every direct step (commit, report, pre-cleanup, z3-check, HALT) is inline-only — consistent"
