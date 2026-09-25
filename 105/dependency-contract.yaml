@@ -1,0 +1,34 @@
+# Dependency Contract — extracted as-is from .issues/105/artifacts/interface-compatibility.yaml dependency_contract section (research task step 9)
+issue: 105
+source: ".issues/105/artifacts/interface-compatibility.yaml#dependency_contract (extracted as-is — no auto-backfill needed)"
+sources:
+  - name: test/test_workflow_jobs.py
+    role: enforcement-test
+  - name: scripts/release-watch.py
+    role: pipeline-under-test
+targets:
+  - name: .github/workflows/upstream-release-watch.yml
+    role: workflow-under-restructure
+  - name: .github/release-watch/last-seen-tag
+    role: state-file
+edges:
+  - source: test/test_workflow_jobs.py
+    target: .github/workflows/upstream-release-watch.yml
+    constraint: "tests load the YAML via yaml.safe_load and assert job-level jobs.release-watch.container.image == ghcr.io/astral-sh/uv:python3.12-bookworm-slim; step-level container/entrypoint keys absent"
+    type: "yaml-structure"
+  - source: .github/workflows/upstream-release-watch.yml
+    target: scripts/release-watch.py
+    constraint: "run step must execute 'uv run scripts/release-watch.py' positioned after the actions/checkout@v4 step (FR-3); script invoked with no arguments using DEFAULT_STATE_PATH"
+    type: "invocation"
+  - source: scripts/release-watch.py
+    target: .github/release-watch/last-seen-tag
+    constraint: "read_last_seen_tag() expects UTF-8 text, strip()ed; run_release_watch() writes f'{newest}\\n'; SC-6 test must pass a temporary Path with parent writable"
+    type: "file-io"
+  - source: scripts/release-watch.py
+    target: github-api
+    constraint: "SC-6 pytest must mock upstream fetch and issue-filing boundary (compute_new_tags/create_issue/search_issue_exists external calls) so the test runs offline"
+    type: "mock-boundary"
+  - source: .github/workflows/upstream-release-watch.yml
+    target: github-actions-parser
+    constraint: "container key only valid at job level; permissions exactly issues: write + contents: write (NFR-2)"
+    type: "platform-schema"

@@ -1,0 +1,39 @@
+# Code Path Inventory — backfilled from .issues/105/spec.md (retroactive mode)
+issue: 105
+mode: retroactive
+sc_paths:
+  SC-1:
+    - path: ".github/workflows/upstream-release-watch.yml jobs.release-watch.container"
+      note: "Job-level container key added; image exactly ghcr.io/astral-sh/uv:python3.12-bookworm-slim"
+    - path: "test/test_workflow_jobs.py load_workflow()"
+      note: "YAML load + job-level container assertion"
+  SC-2:
+    - path: ".github/workflows/upstream-release-watch.yml jobs.release-watch.steps[*]"
+      note: "No step carries container: or entrypoint: keys; run step 'uv run scripts/release-watch.py' replaces them"
+    - path: "test/test_workflow_jobs.py (step-key assertions)"
+  SC-3:
+    - path: "GitHub Actions workflow parser (external)"
+      note: "Live gh workflow run upstream-release-watch.yml --ref dev; exit 0, no HTTP 422"
+  SC-4:
+    - path: "GitHub Actions run lifecycle (external)"
+      note: "Live gh run view <run-id>; conclusion == success"
+  SC-5:
+    - path: "scripts/release-watch.py compute_new_tags(state_file)"
+      note: "Non-current state branch → returns upstream tag"
+    - path: "scripts/release-watch.py search_issue_exists(tag, repo)"
+      note: "Dupe search before filing"
+    - path: "scripts/release-watch.py file_new_tags(tags, repo) → create_issue()"
+      note: "Files exactly one issue"
+    - path: "gh issue list (live diff, pre-run vs post-run)"
+  SC-6:
+    - path: "scripts/release-watch.py run_release_watch(state_file, repo)"
+      note: "State-file write branch: state_file.write_text(f'{newest}\\n') after filing"
+    - path: "pytest test invoking run_release_watch() with mocked upstream fetch + temporary state file"
+  SC-7:
+    - path: "scripts/release-watch.py compute_new_tags(state_file)"
+      note: "Current-state branch → empty tag list → zero issues"
+    - path: "gh issue list (live diff, pre-dispatch vs post-dispatch)"
+supporting_paths:
+  - "scripts/release-watch.py read_last_seen_tag(state_file) — state read"
+  - "scripts/release-watch.py is_release_tag(value) — filters commit-hash refs"
+  - ".github/release-watch/last-seen-tag — state file (in-run workspace)"

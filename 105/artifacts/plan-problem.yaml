@@ -1,0 +1,68 @@
+# Plan problem — phase DAG for issue 105 (research task step 12)
+# Each phase gets a dedicated parameter-free action so grounded preconditions
+# (done(pN)) bind to the correct constant; ordering DAG from structure.yaml.
+domain: phase-execution
+types:
+  - name: phase
+objects:
+  - name: p1
+    type: phase
+  - name: p2
+    type: phase
+  - name: p3
+    type: phase
+  - name: p4
+    type: phase
+  - name: p5
+    type: phase
+  - name: p6
+    type: phase
+fluents:
+  - name: done
+    params:
+      - name: p
+        type: phase
+actions:
+  - name: do1
+    params: []
+    preconditions: []
+    effects:
+      - done(p1)
+  - name: do2
+    params: []
+    preconditions:
+      - done(p1)
+    effects:
+      - done(p2)
+  - name: do3
+    params: []
+    preconditions:
+      - done(p2)
+    effects:
+      - done(p3)
+  - name: do4
+    params: []
+    preconditions:
+      - done(p3)
+    effects:
+      - done(p4)
+  - name: do5
+    params: []
+    preconditions:
+      - done(p1)
+    effects:
+      - done(p5)
+  - name: do6
+    params: []
+    preconditions:
+      - done(p4)
+    effects:
+      - done(p6)
+init: []
+goals:
+  - done(p1)
+  - done(p2)
+  - done(p3)
+  - done(p4)
+  - done(p5)
+  - done(p6)

@@ -1,0 +1,25 @@
+# Blast Radius — backfilled from .issues/105/spec.md (retroactive mode)
+issue: 105
+mode: retroactive
+affected_files:
+  - path: .github/workflows/upstream-release-watch.yml
+    exists: true
+    change: "Move step-level container:/entrypoint: keys to job-level container: with pinned image; replace with run: uv run scripts/release-watch.py step"
+    verification: "read live 2026-09-24 — step-level container:/entrypoint: confirmed present at 'Run release-watch pipeline' step"
+  - path: test/test_workflow_jobs.py
+    exists: true
+    change: "Rewrite test_sc4_script_invocation_container_step to assert job-level container image exactly pinned and zero step-level container/entrypoint keys"
+    verification: "read live 2026-09-24 — SC-4 test currently asserts the invalid step-level shape"
+blast_radius:
+  direct:
+    - ".github/workflows/upstream-release-watch.yml (workflow structure)"
+    - "test/test_workflow_jobs.py (enforcement assertions)"
+  indirect_read_only:
+    - "scripts/release-watch.py — invoked by the run step; logic unchanged (spec Not Included)"
+    - ".github/release-watch/last-seen-tag — state file written by the script inside the run workspace; format unchanged"
+  out_of_scope:
+    - "on:/concurrency: scaffolding"
+    - "checkout step"
+    - "permissions block (NFR-2: exactly issues: write, contents: write)"
+    - "release-watch script logic, issue-filing behavior, state-file format"
+risk: "LOW-MEDIUM — job-level container changes default env/shell context for all steps; mitigated by explicit run step and live dispatch re-verification (SC-3/SC-4)"

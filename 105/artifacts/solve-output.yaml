@@ -1,0 +1,33 @@
+# Solve output — research task results (issue 105)
+issue: 105
+generated: "2026-09-24"
+solve_status: SAT
+plan_status: SOLVED_SATISFICING
+checks:
+  solve_model:
+    command: "./.opencode/tools/solve model --contract-path .issues/105/dependency-contract.yaml --query 'z3.BoolVal(True)'"
+    result: SAT
+    note: "contract declares no variables; tautology query verifies preconditions+constraints satisfiable"
+  solve_check:
+    command: "./.opencode/tools/solve check --contract-path .issues/105/dependency-contract.yaml --state-path .issues/105/artifacts/state-analysis.yaml"
+    result: "SAT (+ postconditions + invariants)"
+  plan_plan:
+    command: "./.opencode/tools/plan plan --problem .issues/105/artifacts/plan-problem.yaml"
+    engine: tamer
+    result: SOLVED_SATISFICING
+    plan_length: 6
+    plan_steps:
+      - do1()   # phase-1: workflow restructure (SC-1, SC-2)
+      - do2()   # phase-2: live dispatch accepted (SC-3) — after phase-1
+      - do3()   # phase-3: run conclusion success (SC-4) — after phase-2
+      - do4()   # phase-4: issue filed once (SC-5) — after phase-3
+      - do5()   # phase-5: state-advance pytest (SC-6) — after phase-1
+      - do6()   # phase-6: zero-issues idempotency (SC-7) — after phase-4
+    note: "planner order is one valid topological order of the DAG; structure.yaml canonical order (1→2→3→4→5→6) also satisfies all edges (phase-5 after phase-1, phase-6 after phase-4)"
+problem_file: .issues/105/artifacts/plan-problem.yaml
+dependency_contract: .issues/105/dependency-contract.yaml
+structure_artifact: .issues/105/artifacts/structure.yaml
+verification_gates:
+  triplet_colocation: PASS (see structure.yaml triplet_colocation)
+  cross_phase_dependency: PASS (see structure.yaml cross_phase_dependency_check)
+  all_sc_behavioral_enforcement: "per spec Enforcement Gate — all-or-nothing"

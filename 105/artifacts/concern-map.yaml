@@ -1,0 +1,36 @@
+# Concern Map — backfilled from .issues/105/spec.md (retroactive mode)
+issue: 105
+mode: retroactive
+concerns:
+  - id: C1-workflow-structure
+    concern: "Job-level container placement and step-shape correctness in the workflow YAML"
+    scs: [SC-1, SC-2]
+    phase_boundary: "Item 1 (RED/GREEN pytest enforcement + workflow YAML restructure)"
+    rationale: "Both SCs target the same file edit and one pytest cycle; inseparable per spec Items table"
+  - id: C2-live-dispatch-parseability
+    concern: "GitHub Actions accepts a workflow_dispatch with no HTTP 422 parse failure"
+    scs: [SC-3]
+    phase_boundary: "Item 2 (live gh workflow run observation)"
+    rationale: "Live-only verification; depends on C1 being complete"
+  - id: C3-run-success
+    concern: "Dispatched run completes with conclusion success (container executes end-to-end)"
+    scs: [SC-4]
+    phase_boundary: "Item 3 (gh run view observation)"
+    rationale: "Depends on C2 (dispatch accepted) and C1 (container env)"
+  - id: C4-issue-filing
+    concern: "Non-current state produces exactly one issue titled with the release tag"
+    scs: [SC-5]
+    phase_boundary: "Item 4 (live dispatch + gh issue list diff)"
+    rationale: "Depends on C3; precondition: state file not current"
+  - id: C5-state-advance
+    concern: "run_release_watch() advances the state file to the newest filed tag"
+    scs: [SC-6]
+    phase_boundary: "Item 5 (pytest with mocked upstream fetch)"
+    rationale: "Test-execution concern, independent of live dispatch"
+  - id: C6-idempotency
+    concern: "Current state + dupe issue present produces zero new issues"
+    scs: [SC-7]
+    phase_boundary: "Item 6 (second live dispatch + issue list diff)"
+    rationale: "Depends on C4 (an issue already filed)"
+dependency_order: [C1, C2, C3, C4, C5, C6]
+notes: "C5 is executable in parallel with C2-C4/C6 (test-environment only), but spec Items sequence it last-before-C6; per-SC one-item-one-cycle preserved"

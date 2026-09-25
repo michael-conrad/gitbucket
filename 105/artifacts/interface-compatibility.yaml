@@ -1,0 +1,55 @@
+# Interface Compatibility — backfilled from .issues/105/spec.md (retroactive mode)
+issue: 105
+mode: retroactive
+interfaces:
+  - name: workflow-yaml-schema
+    boundary: "repository workflow file → GitHub Actions parser"
+    contract: "container: is valid ONLY at jobs.<job_id> level; step-level container:/entrypoint: keys are invalid and cause HTTP 422"
+    compatibility: "CHANGE — step-level keys removed, job-level container added; all other job properties (runs-on, permissions, steps) unchanged"
+    doc_source: "https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#jobsjob_idcontainer (fetched live 2026-09-24)"
+  - name: script-invocation
+    boundary: "workflow run step → scripts/release-watch.py"
+    contract: "run step executes 'uv run scripts/release-watch.py' inside the container; script reads .github/release-watch/last-seen-tag, queries upstream latest release, files issues, writes state back"
+    compatibility: "UNCHANGED — script path, CLI surface (no args), and default state path preserved"
+  - name: state-file-format
+    boundary: "scripts/release-watch.py ↔ .github/release-watch/last-seen-tag"
+    contract: "plain text single tag line + trailing newline; read via state_file.read_text().strip(); written via state_file.write_text(f'{newest}\\n')"
+    compatibility: "UNCHANGED — no format change (spec Not Included)"
+    internal_evidence: "scripts/release-watch.py read_last_seen_tag() lines 43-48, run_release_watch() state write lines 177-178"
+  - name: github-api
+    boundary: "scripts/release-watch.py → GitHub REST (issues, releases/latest)"
+    contract: "create_issue() POSTs issues; search_issue_exists() searches existing issues; upstream fetch from gitbucket/gitbucket releases/latest"
+    compatibility: "UNCHANGED — no script logic change"
+
+dependency_contract:
+  sources:
+    - name: test/test_workflow_jobs.py
+      role: enforcement-test
+    - name: scripts/release-watch.py
+      role: pipeline-under-test
+  targets:
+    - name: .github/workflows/upstream-release-watch.yml
+      role: workflow-under-restructure
+    - name: .github/release-watch/last-seen-tag
+      role: state-file
+  edges:
+    - source: test/test_workflow_jobs.py
+      target: .github/workflows/upstream-release-watch.yml
+      constraint: "tests load the YAML via yaml.safe_load and assert job-level jobs.release-watch.container.image == ghcr.io/astral-sh/uv:python3.12-bookworm-slim; step-level container/entrypoint keys absent"
+      type: "yaml-structure"
+    - source: .github/workflows/upstream-release-watch.yml
+      target: scripts/release-watch.py
+      constraint: "run step must execute 'uv run scripts/release-watch.py' positioned after the actions/checkout@v4 step (FR-3); script invoked with no arguments using DEFAULT_STATE_PATH"
+      type: "invocation"
+    - source: scripts/release-watch.py
+      target: .github/release-watch/last-seen-tag
+      constraint: "read_last_seen_tag() expects UTF-8 text, strip()ed; run_release_watch() writes f'{newest}\\n'; SC-6 test must pass a temporary Path with parent writable"
+      type: "file-io"
+    - source: scripts/release-watch.py
+      target: github-api
+      constraint: "SC-6 pytest must mock upstream fetch and issue-filing boundary (compute_new_tags/create_issue/search_issue_exists external calls) so the test runs offline"
+      type: "mock-boundary"
+    - source: .github/workflows/upstream-release-watch.yml
+      target: github-actions-parser
+      constraint: "container key only valid at job level; permissions exactly issues: write + contents: write (NFR-2)"
+      type: "platform-schema"

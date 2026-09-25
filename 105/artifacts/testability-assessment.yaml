@@ -1,0 +1,57 @@
+# Testability Assessment — backfilled from .issues/105/spec.md (retroactive mode)
+issue: 105
+mode: retroactive
+enforcement_gate: "all-or-nothing — SC-1 through SC-7 must all PASS; single FAIL blocks completion; no waiver, no soft-pass, no structural substitute for behavioral evidence"
+scs:
+  - id: SC-1
+    criterion: "Job-level container: on release-watch job with image exactly ghcr.io/astral-sh/uv:python3.12-bookworm-slim"
+    evidence_type: behavioral
+    method: "pytest test execution against workflow YAML (test/test_workflow_jobs.py)"
+    cost_frame: "~5 min — one pytest assertion edit + one YAML edit"
+    testability: HIGH
+    notes: "Deterministic YAML structure assertion executed by pytest — test execution counts as behavioral evidence per spec Evidence column"
+  - id: SC-2
+    criterion: "No step carries container: or entrypoint: key"
+    evidence_type: behavioral
+    method: "pytest test execution (test/test_workflow_jobs.py)"
+    cost_frame: "~5 min — one pytest assertion + deletion of two invalid step keys"
+    testability: HIGH
+  - id: SC-3
+    criterion: "Live workflow_dispatch accepted, exit 0, no HTTP 422"
+    evidence_type: behavioral
+    method: "live gh workflow run upstream-release-watch.yml --ref dev observation with exit code"
+    cost_frame: "~1 min — one gh workflow run invocation"
+    testability: HIGH
+    dependency: "gh CLI auth on dev; workflow_dispatch permission (workflow ID 366319756, active)"
+  - id: SC-4
+    criterion: "Dispatched run conclusion == success"
+    evidence_type: behavioral
+    method: "live gh run view <run-id> observation"
+    cost_frame: "~minutes — gh run view + wait for completion"
+    testability: HIGH
+    dependency: "SC-3 dispatch accepted"
+  - id: SC-5
+    criterion: "State not current → exactly one issue titled with received tag"
+    evidence_type: behavioral
+    method: "live gh issue list diff (pre-run vs post-run)"
+    cost_frame: "~5 min — gh issue list diff before/after"
+    testability: HIGH
+    precondition: "state file not current — true on first run (state never committed/advanced)"
+  - id: SC-6
+    criterion: "State file advances to newest filed tag via run_release_watch()"
+    evidence_type: behavioral
+    method: "pytest invoking run_release_watch() with mocked upstream fetch against a temporary state file, asserting content advanced"
+    cost_frame: "~15 min — one pytest test for run_release_watch() state advance"
+    testability: HIGH
+    notes: "Mock boundary: upstream fetch + issue filing; state file must be a temporary writable Path"
+  - id: SC-7
+    criterion: "State current + dupe issue present → zero new issues"
+    evidence_type: behavioral
+    method: "second live dispatch + gh issue list diff"
+    cost_frame: "~10 min — second dispatch + issue list diff"
+    testability: HIGH
+    precondition: "dupe-keyed issue already present (edge case: committed state never advances, so currency comes from the dupe search)"
+evidence_constraints:
+  - "SC-3/SC-4/SC-5/SC-7 are live observations — cannot be substituted with grep/static checks"
+  - "SC-1/SC-2/SC-6 are test executions — pytest run with exit evidence"
+  - "EVIDENCE_TYPE_MISMATCH applies if structural evidence is submitted for any SC"

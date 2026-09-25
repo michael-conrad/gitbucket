@@ -1,0 +1,29 @@
+# Cross-Cutting Matrix — backfilled from .issues/105/spec.md (retroactive mode)
+issue: 105
+mode: retroactive
+dimensions:
+  - dimension: container-runtime-environment
+    description: "Job-level container defines env/shell/GITHUB_TOKEN context for ALL steps"
+    scs: [SC-1, SC-2, SC-4, SC-5, SC-6, SC-7]
+    notes: "SC-1/SC-2 shape the environment; SC-4/SC-5/SC-7 depend on it executing correctly. SC-6 tests run_release_watch() directly and is unaffected by container env."
+  - dimension: state-file-currency
+    description: ".github/release-watch/last-seen-tag content determines which branch of run_release_watch() executes"
+    scs: [SC-5, SC-6, SC-7]
+    notes: "SC-5 precondition: not current. SC-7 precondition: current + dupe issue present. SC-6 asserts the write-back that transitions state from not-current to current."
+  - dimension: permissions
+    description: "issues: write and contents: write required by issue filing and (no) state push-back"
+    scs: [SC-4, SC-5, SC-7]
+    notes: "NFR-2 forbids expansion. SC-3 (dispatch acceptance) is parser-level, permission-independent."
+  - dimension: idempotency-vs-duplicate-filing
+    description: "Dupe search (search_issue_exists) is the only duplicate guard since committed state never advances from runs"
+    scs: [SC-5, SC-6, SC-7]
+    notes: "Edge case: state file never committed — SC-7 precondition must be dupe-keyed issue already present."
+cross_cutting_scs:
+  SC-5: [container-runtime-environment, state-file-currency, permissions, idempotency-vs-duplicate-filing]
+  SC-7: [container-runtime-environment, state-file-currency, permissions, idempotency-vs-duplicate-filing]
+  SC-6: [state-file-currency]
+  SC-4: [container-runtime-environment, permissions]
+isolated_scs:
+  SC-1: "pure workflow YAML structure"
+  SC-2: "pure workflow YAML structure"
+  SC-3: "parser acceptance only"

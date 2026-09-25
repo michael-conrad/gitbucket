@@ -1,0 +1,159 @@
+# Structure — phase decomposition, dependency DAG, skill+task selection (research task)
+issue: 105
+project_root: /home/muksihs/git/gitbucket
+issues_prefix: .issues
+mode: retroactive
+sc_source: ".issues/105/spec.md Success Criteria table (sc-summary.yaml absent in retroactive mode; spec Items table used as authoritative per-SC decomposition)"
+
+phases:
+  - id: phase-1
+    name: workflow-restructure
+    scs: [SC-1, SC-2]
+    items:
+      - item: Item-1
+        sc: SC-1
+        tdd_cycle: RED/GREEN/verify/commit
+        description: "RED: pytest asserting job-level container image pinned + zero step-level container/entrypoint keys fails. GREEN: move container: to job level (ghcr.io/astral-sh/uv:python3.12-bookworm-slim), replace step-level container:/entrypoint: with 'run: uv run scripts/release-watch.py'."
+      - item: Item-1b
+        sc: SC-2
+        tdd_cycle: RED/GREEN/verify/commit
+        description: "Same enforcement test asserts absence of step-level container:/entrypoint: keys on all release-watch job steps (SC-2's RED shares Item 1's failing test)."
+    skill_task_selection:
+      - step: pre-regression
+        skill: test-driven-development
+        dispatch: "task(..., prompt: 'execute phase-0 task from test-driven-development')"
+      - step: red
+        skill: test-driven-development
+        dispatch: "task(..., prompt: 'execute red task from test-driven-development')"
+      - step: green
+        skill: test-driven-development
+        dispatch: "task(..., prompt: 'execute green task from test-driven-development')"
+      - step: post-regression
+        skill: test-driven-development
+        dispatch: "task(..., prompt: 'execute phase-4 task from test-driven-development')"
+      - step: verify
+        skill: verification-before-completion
+        dispatch: "task(..., prompt: 'execute verify task from verification-before-completion')"
+      - step: commit-inline
+        skill: (orchestrator)
+        dispatch: "git add && git commit directly"
+
+  - id: phase-2
+    name: live-dispatch-accepted
+    scs: [SC-3]
+    items:
+      - item: Item-2
+        sc: SC-3
+        tdd_cycle: verify/commit (live-verification; parseability covered by phase-1)
+        description: "gh workflow run upstream-release-watch.yml --ref dev exits 0, no HTTP 422. Commit evidence artifact."
+    skill_task_selection:
+      - step: verify
+        skill: verification-before-completion
+        dispatch: "task(..., prompt: 'execute verify task from verification-before-completion')"
+      - step: commit-inline
+        skill: (orchestrator)
+        dispatch: "git add && git commit directly"
+
+  - id: phase-3
+    name: run-conclusion-success
+    scs: [SC-4]
+    items:
+      - item: Item-3
+        sc: SC-4
+        tdd_cycle: verify/commit
+        description: "gh run view <run-id> shows conclusion success. Commit evidence artifact."
+    skill_task_selection:
+      - step: verify
+        skill: verification-before-completion
+        dispatch: "task(..., prompt: 'execute verify task from verification-before-completion')"
+      - step: commit-inline
+        skill: (orchestrator)
+        dispatch: "git add && git commit directly"
+
+  - id: phase-4
+    name: issue-filed-once
+    scs: [SC-5]
+    items:
+      - item: Item-4
+        sc: SC-5
+        tdd_cycle: verify/commit
+        description: "Precondition: state file not current (first run). Dispatch, wait, gh issue list diff shows exactly one new issue titled with received tag. Commit evidence artifact."
+    skill_task_selection:
+      - step: verify
+        skill: verification-before-completion
+        dispatch: "task(..., prompt: 'execute verify task from verification-before-completion')"
+      - step: commit-inline
+        skill: (orchestrator)
+        dispatch: "git add && git commit directly"
+
+  - id: phase-5
+    name: state-advance-pytest
+    scs: [SC-6]
+    items:
+      - item: Item-5
+        sc: SC-6
+        tdd_cycle: RED/GREEN/verify/commit
+        description: "RED: pytest asserting run_release_watch() advances a temporary state file to received tag fails. GREEN: test invokes run_release_watch() with mocked upstream fetch, asserts state file content. Offline via mock boundaries per interface-compatibility.yaml."
+    skill_task_selection:
+      - step: red
+        skill: test-driven-development
+        dispatch: "task(..., prompt: 'execute red task from test-driven-development')"
+      - step: green
+        skill: test-driven-development
+        dispatch: "task(..., prompt: 'execute green task from test-driven-development')"
+      - step: post-regression
+        skill: test-driven-development
+        dispatch: "task(..., prompt: 'execute phase-4 task from test-driven-development')"
+      - step: verify
+        skill: verification-before-completion
+        dispatch: "task(..., prompt: 'execute verify task from verification-before-completion')"
+      - step: commit-inline
+        skill: (orchestrator)
+        dispatch: "git add && git commit directly"
+
+  - id: phase-6
+    name: zero-issues-idempotency
+    scs: [SC-7]
+    items:
+      - item: Item-6
+        sc: SC-7
+        tdd_cycle: verify/commit
+        description: "Precondition: state current / dupe issue already exists (satisfied after phase-4's run via dupe search). Second dispatch, gh issue list diff shows zero new issues. Commit evidence artifact."
+    skill_task_selection:
+      - step: verify
+        skill: verification-before-completion
+        dispatch: "task(..., prompt: 'execute verify task from verification-before-completion')"
+      - step: commit-inline
+        skill: (orchestrator)
+        dispatch: "git add && git commit directly"
+
+dependency_dag:
+  edges:
+    - from: phase-1
+      to: phase-2
+      reason: "Live dispatch (SC-3) requires the restructured, parseable workflow (SC-1/SC-2)"
+    - from: phase-2
+      to: phase-3
+      reason: "Run conclusion (SC-4) requires an accepted dispatch (SC-3)"
+    - from: phase-3
+      to: phase-4
+      reason: "Issue-filing observation (SC-5) requires a successful run (SC-4)"
+    - from: phase-4
+      to: phase-6
+      reason: "SC-7's zero-issues precondition (dupe issue exists) is established by phase-4's filing run"
+    - from: phase-1
+      to: phase-5
+      reason: "SC-6 pytest targets scripts/release-watch.py, unchanged, but the workflow restructure must land first per spec Items order (Item 1 before Item 5)"
+
+triplet_colocation:
+  SC-1: {red: phase-1, green: phase-1, commit: phase-1, ok: true}
+  SC-2: {red: phase-1, green: phase-1, commit: phase-1, ok: true}
+  SC-3: {red: "n/a (live-verify)", green: "n/a (live-verify)", commit: phase-2, ok: true}
+  SC-4: {red: "n/a (live-verify)", green: "n/a (live-verify)", commit: phase-3, ok: true}
+  SC-5: {red: "n/a (live-verify)", green: "n/a (live-verify)", commit: phase-4, ok: true}
+  SC-6: {red: phase-5, green: phase-5, commit: phase-5, ok: true}
+  SC-7: {red: "n/a (live-verify)", green: "n/a (live-verify)", commit: phase-6, ok: true}
+
+cross_phase_dependency_check:
+  result: PASS
+  note: "No RED test in any phase depends on SC output from a later phase. Phase-1 RED depends only on the current (invalid) workflow file; phase-5 RED depends only on unchanged scripts/release-watch.py."

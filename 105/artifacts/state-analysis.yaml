@@ -1,0 +1,43 @@
+# State Analysis — backfilled from .issues/105/spec.md (retroactive mode)
+issue: 105
+mode: retroactive
+state_entities:
+  - entity: release-watch-state-file
+    path: .github/release-watch/last-seen-tag
+    current_state: "absent or stale (never committed/advanced from workflow runs)"
+    transitions:
+      - from: "absent/empty (bootstrap)"
+        trigger: "run_release_watch() with upstream latest tag being a valid release tag, no dupe issue"
+        to: "written to newest filed release tag (f'{tag}\\n')"
+        evidence: "scripts/release-watch.py lines 162-178: compute_new_tags → file_new_tags → state_file.write_text"
+      - from: "not current (stale vs upstream latest)"
+        trigger: "successful pipeline run filing one issue"
+        to: "current (equals newest filed tag)"
+        sc: SC-6
+      - from: "current (equals upstream latest)"
+        trigger: "pipeline run"
+        to: "unchanged; compute_new_tags returns [] → zero issues filed"
+        sc: SC-7
+  - entity: workflow-parse-state
+    path: .github/workflows/upstream-release-watch.yml
+    current_state: "INVALID — step-level container:/entrypoint: keys cause HTTP 422 on dispatch (live-verified, tmp/103/artifacts/phase2-sc5-live-dispatch.yaml)"
+    transitions:
+      - from: "invalid (step-level container)"
+        trigger: "Item 1 GREEN restructure"
+        to: "valid (job-level container, plain run step)"
+        sc: [SC-1, SC-2, SC-3]
+  - entity: issue-set
+    path: "GitHub issues in michael-conrad/gitbucket"
+    transitions:
+      - from: "no issue for tag T"
+        trigger: "dispatch with state not current and T a valid new release tag"
+        to: "exactly one issue titled with T"
+        sc: SC-5
+      - from: "issue for tag T exists (dupe search hit)"
+        trigger: "any subsequent run"
+        to: "zero new issues"
+        sc: SC-7
+invariants:
+  - "No state entity regresses: workflow goes invalid→valid only; state file advances monotonically (is_newer_tag guard)"
+  - "Concurrency group upstream-release-watch pends overlapping runs (cancel-in-progress false) — no race between SC-5/SC-7 dispatches"
+  - "Script logic unchanged — all state transitions are exercised, not redefined"
