@@ -17,6 +17,9 @@ concurrency:
 jobs:
   release-watch:
     runs-on: ubuntu-latest
+    # SC-1 (.issues/105): job-level container — pinned uv image (FR-3, NFR-1).
+    container:
+      image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
     # SC-3 (.issues/103): minimal permissions — exactly issues: write and
     # contents: write, no broader scopes.
     permissions:
@@ -25,12 +28,9 @@ jobs:
     steps:
       # SC-2 (.issues/103): check out the repository before invoking the script.
       - uses: actions/checkout@v4
-      # SC-4 (.issues/103): invoke the pipeline script inside the pinned uv
-      # container image (FR-3, NFR-1).
+      # SC-2 (.issues/105): run the pipeline with uv inside the job-level container.
       - name: Run release-watch pipeline
-        container:
-          image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
-          entrypoint: uv run scripts/release-watch.py
+        run: uv run scripts/release-watch.py
 
 # SPDX-FileCopyrightText: 2026 Michael Conrad
 # SPDX-License-Identifier: MIT

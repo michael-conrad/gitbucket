@@ -1,4 +1,5 @@
-"""Enforcement test for .issues/103 SC-1 — jobs section with at least one job.
+"""Enforcement tests for .github/workflows/upstream-release-watch.yml
+(.issues/103 SC-1..3; .issues/105 SC-1, SC-2 container placement).
 
 Co-authored with AI: OpenCode (ollama-cloud/glm-5.3-flash)
 """
@@ -47,13 +48,15 @@ def test_sc2_checkout_step_precedes_script_invocation() -> None:
         assert checkout_idx is not None, (
             f"job {job_id!r} has no actions/checkout@* step"
         )
-        for idx, step in enumerate(steps[checkout_idx + 1 :], start=checkout_idx + 1):
-            run = step.get("run", "") if isinstance(step, dict) else ""
-            assert "release-watch.py" not in run, (
-                f"step {idx} in job {job_id!r} invokes release-watch.py before "
-                "any actions/checkout@* step ran"
-            )
-        break
+        after = steps[checkout_idx + 1 :]
+        assert after, f"job {job_id!r} has no steps after checkout"
+        assert any(
+            isinstance(step, dict) and "release-watch.py" in (step.get("run") or "")
+            for step in after
+        ), (
+            f"job {job_id!r} has no step after actions/checkout@* that invokes "
+            "release-watch.py"
+        )
 
 
 def test_sc3_job_declares_issue_and_contents_write_permissions() -> None:
@@ -73,41 +76,44 @@ def test_sc3_job_declares_issue_and_contents_write_permissions() -> None:
         )
 
 
-def test_sc4_script_invocation_container_step() -> None:
-    """SC-4 (.issues/103): job has a container step with image
-    ghcr.io/astral-sh/uv:python3.12-bookworm-slim (NFR-1) invoking
-    scripts/release-watch.py."""
+def test_sc1_job_level_container_on_release_watch() -> None:
+    """SC-1 (.issues/105): release-watch job declares a job-level `container:`
+    whose image is exactly ghcr.io/astral-sh/uv:python3.12-bookworm-slim."""
     data = load_workflow()
     jobs = data.get("jobs") or {}
     assert jobs, "workflow declares no jobs: section"
     expected_image = "ghcr.io/astral-sh/uv:python3.12-bookworm-slim"
-    for job_id, job in jobs.items():
-        steps = job.get("steps")
-        assert steps, f"job {job_id!r} defines no steps"
-        for step in steps:
-            assert isinstance(step, dict), f"step in job {job_id!r} is not a mapping"
-            container = step.get("container")
-            if container is None:
-                continue
-            image = (
-                container.get("image", "")
-                if isinstance(container, dict)
-                else str(container)
-            )
-            assert image == expected_image, (
-                f"job {job_id!r} container image is {image!r}, "
-                f"expected {expected_image!r} (NFR-1)"
-            )
-            run = step.get("run", "")
-            entrypoint = ""
-            if isinstance(container, dict):
-                entrypoint = container.get("entrypoint", "")
-            combined = f"{run} {entrypoint} {step.get('with', '')}"
-            assert "scripts/release-watch.py" in combined, (
-                f"job {job_id!r} container step does not invoke "
-                "scripts/release-watch.py"
-            )
-            return
-        pytest.fail(f"job {job_id!r} has no container step invoking release-watch")
+    job = jobs.get("release-watch")
+    assert job, "workflow declares no release-watch job"
+    container = job.get("container")
+    assert container, (
+        "release-watch job does not declare a job-level container:"
+    )
+    image = container.get("image", "") if isinstance(container, dict) else str(container)
+    assert image == expected_image, (
+        f"release-watch job container image is {image!r}, "
+        f"expected {expected_image!r}"
+    )
 
-    pytest.fail("workflow declares no jobs with a container step")
+
+def test_sc2_no_step_level_container_or_entrypoint() -> None:
+    """SC-2 (.issues/105): every step in the release-watch job carries neither
+    a `container:` nor an `entrypoint:` key — container config lives at the
+    job level only."""
+    data = load_workflow()
+    jobs = data.get("jobs") or {}
+    assert jobs, "workflow declares no jobs: section"
+    job = jobs.get("release-watch")
+    assert job, "workflow declares no release-watch job"
+    steps = job.get("steps")
+    assert steps, "release-watch job defines no steps"
+    for idx, step in enumerate(steps):
+        assert isinstance(step, dict), f"step {idx} is not a mapping"
+        assert "container" not in step, (
+            f"step {idx} in release-watch job declares a step-level "
+            "`container:` key — container must be job-level"
+        )
+        assert "entrypoint" not in step, (
+            f"step {idx} in release-watch job declares an `entrypoint:` key — "
+            "container config must be job-level"
+        )
