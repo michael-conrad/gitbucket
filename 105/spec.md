@@ -3,6 +3,10 @@
 > Full spec and plan artifacts: https://github.com/michael-conrad/gitbucket/tree/issues-data/105/
 > (placeholder — finalized after remote issue number is known)
 
+## Approach Chosen
+
+Move the container declaration from step level (invalid) to job level (the only accepted position). The job declares `container:` with image `ghcr.io/astral-sh/uv:python3.12-bookworm-slim`; the step that previously carried `container:`/`entrypoint:` becomes a plain `run: uv run scripts/release-watch.py` step. This preserves the intended execution environment while making the workflow parseable by GitHub Actions.
+
 ## Problem
 
 The merged upstream-release-watch workflow (PR #104, merge commit 9f7b6e09 on dev) places `container:` and `entrypoint:` at the **step** level, but GitHub Actions only accepts `container:` as a **job-level** property. A live dispatch attempt on dev returned HTTP 422:
@@ -20,12 +24,6 @@ Evidence artifact: `tmp/103/artifacts/phase2-sc5-live-dispatch.yaml`. The workfl
 - `on:`/`concurrency:` scaffolding unchanged
 - Update enforcement test `test/test_workflow_jobs.py`
 
-**Out of scope:** any change to release-watch script logic, issue-filing behavior, or state-file format.
-
-## Approach
-
-Move the container declaration from step level (invalid) to job level (the only accepted position). The job declares `container:` with image `ghcr.io/astral-sh/uv:python3.12-bookworm-slim`; the step that previously carried `container:`/`entrypoint:` becomes a plain `run: uv run scripts/release-watch.py` step. This preserves the intended execution environment while making the workflow parseable by GitHub Actions.
-
 ## Root Cause (live-verified)
 
 - PR #104 merged workflow with step-level `container:`/`entrypoint:` keys
@@ -33,25 +31,141 @@ Move the container declaration from step level (invalid) to job level (the only 
 
 ## Impact
 
-- **Risk:** job-level container changes default env/shell context — mitigate by keeping the run step explicit (`uv run ...`) and re-verifying live dispatch
-- **Risk:** state-file handling could double-file issues on re-run — mitigated by SC-5 repeat-dispatch verification
+- **Risk:** job-level container changes default env/shell context — mitigated by keeping the run step explicit (`uv run ...`) and re-verifying live dispatch
+- **Risk:** state-file handling could double-file issues on re-run — mitigated by SC-5/SC-7 repeat-dispatch verification and the script's dupe search
 - **Dependency:** `gh` CLI auth on dev; `workflow_dispatch` permission
-- **Call to action:** approve this spec to unblock the release-watch pipeline, which is currently entirely non-functional
+
+## Alternatives Considered & Why Discarded
+
+1. **Wrap the script invocation in a step-level `uses: docker://...` step.** Discarded: `uses: docker://image` runs the image's default entrypoint, which is not `uv`; passing the script through `with: entrypoint:` reintroduces the same step-level container semantics that caused the parse failure and couples the invocation to Docker ENTRYPOINT override semantics that differ from the job-level container contract.
+2. **Run without a container (`runs-on: ubuntu-latest` only).** Discarded: the pinned uv image (`ghcr.io/astral-sh/uv:python3.12-bookworm-slim`, NFR-1 from .issues/103) guarantees the uv toolchain version; ubuntu-latest's Python/uv availability is not pinned and could drift.
+3. **Pin a runner-level setup (`astral-sh/setup-uv` action).** Discarded: changes the execution model from the already-validated container contract (.issues/103 SC-4/NFR-1) and adds a third-party action dependency not present today.
+
+## Requirements
+
+### Functional Requirements
+
+| ID | Requirement |
+|----|-------------|
+| FR-1 | The `release-watch` job SHALL declare a job-level `container:` key whose `image` is exactly `ghcr.io/astral-sh/uv:python3.12-bookworm-slim`. |
+| FR-2 | No step in the `release-watch` job SHALL carry a `container:` key or an `entrypoint:` key. |
+| FR-3 | The script invocation SHALL be a run step with command `uv run scripts/release-watch.py`, positioned after the `actions/checkout@v4` step. |
+| FR-4 | A `workflow_dispatch` of the workflow on dev SHALL be accepted by GitHub Actions with no HTTP 422 parse failure. |
+| FR-5 | A dispatched run SHALL complete with conclusion `success`. |
+| FR-6 | Given the persisted state file `.github/release-watch/last-seen-tag` is NOT current with the upstream latest release tag, one successful pipeline run SHALL file exactly one GitHub issue titled with that release tag. |
+| FR-7 | After the pipeline files one or more issues, the in-run state file `.github/release-watch/last-seen-tag` SHALL be updated to the newest filed release tag. |
+| FR-8 | Given the persisted state file IS current with the upstream latest release tag, one pipeline run SHALL file zero GitHub issues. |
+
+### Non-Functional Requirements
+
+| ID | Requirement |
+|----|-------------|
+| NFR-1 | The container image SHALL remain the pinned `ghcr.io/astral-sh/uv:python3.12-bookworm-slim` (inherited from .issues/103 NFR-1) — no image change. |
+| NFR-2 | Job permissions SHALL remain exactly `issues: write` and `contents: write` (inherited from .issues/103 SC-3) — no permission expansion. |
+
+## Enforcement Gate
+
+All Success Criteria (SC-1 through SC-7) must PASS — the gate is all-or-nothing. A single FAIL verdict blocks completion; the pipeline halts for remediation and re-verification. No SC may be waived, soft-passed, or substituted with structural evidence when its evidence type is behavioral.
 
 ## Success Criteria
 
-| SC | Criterion | Evidence | Type |
-|----|-----------|----------|------|
-| SC-1 | Workflow declares job-level `container.image` exactly `ghcr.io/astral-sh/uv:python3.12-bookworm-slim` and no step-level container/entrypoint keys | Updated pytest enforcement test (test/test_workflow_jobs.py) | behavioral: test execution |
-| SC-2 | Live `workflow_dispatch` on dev accepted with exit 0, no HTTP 422 | Live `gh workflow run` observation | behavioral: live run inspection |
-| SC-3 | Dispatched run completes with conclusion `success` | `gh run view` | behavioral: live run inspection |
-| SC-4 | Run executes the pipeline: exactly one issue filed for the current latest upstream tag (if state not current) or zero issues (state current) AND state file `.github/release-watch/last-seen-tag` advanced to the received tag | `gh issue list` + git history of the state file | behavioral: live observation |
-| SC-5 | Repeat dispatch with state current files zero new issues | Second dispatch + `gh issue list` | behavioral: live observation |
+| SC | Criterion | Evidence | Type | Documentation Sources |
+|----|-----------|----------|------|----------------------|
+| SC-1 | Workflow declares a job-level `container:` on the `release-watch` job whose `image` is exactly `ghcr.io/astral-sh/uv:python3.12-bookworm-slim` | Updated pytest enforcement test (test/test_workflow_jobs.py) executing against the workflow YAML | behavioral: test execution | GitHub Actions workflow syntax docs (job-level `jobs.<job_id>.container`); current workflow file `.github/workflows/upstream-release-watch.yml` |
+| SC-2 | No step in the `release-watch` job carries a step-level `container:` key or `entrypoint:` key | Updated pytest enforcement test (test/test_workflow_jobs.py) | behavioral: test execution | GitHub Actions workflow syntax docs (step keys); current workflow file |
+| SC-3 | Live `workflow_dispatch` of `upstream-release-watch.yml` on dev is accepted with exit 0 and no HTTP 422 parse failure | Live `gh workflow run ... --ref dev` observation with exit code | behavioral: live run inspection | `gh workflow run` CLI docs; live dispatch evidence artifact |
+| SC-4 | The dispatched run completes with conclusion `success` | Live `gh run view <run-id>` observation | behavioral: live run inspection | `gh run view` CLI docs; run conclusion field |
+| SC-5 | Given precondition: persisted state file `.github/release-watch/last-seen-tag` is NOT current with the upstream latest release tag (first successful run), the run files exactly one GitHub issue titled with the received release tag | Live `gh issue list` observation after run, diffed against the pre-run issue list | behavioral: live observation | `gh issue list` CLI docs; script dupe-search behavior in `scripts/release-watch.py` (`search_issue_exists`, `run_release_watch`) |
+| SC-6 | After the pipeline files issue(s), the in-run state file `.github/release-watch/last-seen-tag` is updated to the newest filed release tag | pytest test executing `run_release_watch()` against a temporary state file and asserting the file content advanced to the received tag | behavioral: test execution | `scripts/release-watch.py` `run_release_watch()` (state-file write branch) |
+| SC-7 | Given precondition: persisted state file `.github/release-watch/last-seen-tag` IS current with the upstream latest release tag, a pipeline run files zero new GitHub issues | Second live dispatch + `gh issue list` observation diffed against the pre-dispatch issue list | behavioral: live observation | `gh issue list` CLI docs; script idempotency (`compute_new_tags`, `search_issue_exists`) |
+
+### Per-SC Cost Frames (dark-prose-007)
+
+Every SC carries both the cost of the action and the cost of skipping it:
+
+| SC | Cost of the action | Cost of skipping |
+|----|--------------------|------------------|
+| SC-1 | One pytest assertion edit + one workflow YAML edit (~5 minutes) | Workflow stays unparseable; every dispatch fails HTTP 422; release-watch remains permanently dead |
+| SC-2 | One pytest assertion + deletion of two invalid step keys (~5 minutes) | Invalid keys keep the workflow failing to parse even with SC-1 fixed; the fix is incomplete and re-merges a known-bad workflow |
+| SC-3 | One `gh workflow run` invocation (~1 minute) | A 422 regression ships unnoticed; the pipeline stays broken after merge |
+| SC-4 | One `gh run view` check plus wait for run completion (~minutes) | A crash inside the container (env/shell drift) ships undetected; failures surface only when a release is missed |
+| SC-5 | One `gh issue list` diff before/after (~5 minutes) | Double-filing or zero-filing goes undetected; release adoption tracking silently files wrong issue counts |
+| SC-6 | One pytest test for `run_release_watch()` state advance (~15 minutes) | State never advances; every subsequent run re-enters the non-current branch and relies solely on dupe search to prevent duplicate issues |
+| SC-7 | One second dispatch + `gh issue list` diff (~10 minutes) | The idempotency guarantee is unverified; re-runs could spam duplicate [SPEC] issues on every weekly cron tick |
+
+## Items
+
+| Item | SC | TDD Cycle |
+|------|----|-----------|
+| Item 1 | SC-1, SC-2 | RED: run updated pytest asserting job-level container image exactly pinned and zero step-level container/entrypoint keys → test FAILS against current step-level workflow. GREEN: move `container:` to job level with pinned image; replace step-level `container:`/`entrypoint:` with `run: uv run scripts/release-watch.py` → test PASSES. Verify: full pytest suite green. Commit. |
+| Item 2 | SC-3 | (Live-verification item; RED/GREEN covered by Item 1's parseability.) Verify: `gh workflow run upstream-release-watch.yml --ref dev` exits 0, no HTTP 422. Commit: evidence artifact update. |
+| Item 3 | SC-4 | Verify: `gh run view <run-id>` shows conclusion `success`. Commit: evidence artifact update. |
+| Item 4 | SC-5 | Verify precondition (state file not current — true on first run since state file has never been committed/advanced): dispatch, wait for completion, `gh issue list` diff shows exactly one new issue titled with the received tag. Commit: evidence artifact update. |
+| Item 5 | SC-6 | RED: pytest asserting `run_release_watch()` advances a temporary state file to the received tag → FAILS while run logic unexercised in test env. GREEN: test invokes `run_release_watch()` with mocked upstream fetch and asserts state file content → PASSES. Verify: full pytest suite green. Commit. |
+| Item 6 | SC-7 | Verify precondition (state current / dupe issue already exists): second dispatch, `gh issue list` diff shows zero new issues. Commit: evidence artifact update. |
+
+One SC per item; each item completes its RED/GREEN/verify/commit cycle before the next begins.
+
+## Dependencies
+
+| Reference | Relationship | Status |
+|-----------|--------------|--------|
+| .issues/103 (workflow job wiring, NFR-1 pinned image) | Parent spec — this fix repairs SC-5's live-dispatch failure from that spec | merged (PR #104) |
+| .issues/101 (release-watch pipeline script) | Provider — `scripts/release-watch.py` behavior is the pipeline under test; unchanged by this spec | merged (PR #102) |
+| `gh` CLI auth on dev | External dependency — required for live dispatch and issue observation (SC-3, SC-4, SC-5, SC-7) | verified |
+| `workflow_dispatch` permission on `michael-conrad/gitbucket` | External dependency — required to trigger the workflow manually | verified (workflow is active, ID 366319756) |
+| upstream `gitbucket/gitbucket` releases/latest API | External dependency — the pipeline's data source; live-verified reachable | verified |
+
+## Traceability
+
+| SC | FR/NFR | Item | Verification |
+|----|--------|------|--------------|
+| SC-1 | FR-1 | Item 1 | pytest enforcement test (test execution) |
+| SC-2 | FR-2 | Item 1 | pytest enforcement test (test execution) |
+| SC-3 | FR-4 | Item 2 | live `gh workflow run` observation |
+| SC-4 | FR-5 | Item 3 | live `gh run view` observation |
+| SC-5 | FR-6 | Item 4 | live `gh issue list` observation |
+| SC-6 | FR-7 | Item 5 | pytest `run_release_watch()` state-advance test (test execution) |
+| SC-7 | FR-8 | Item 6 | second live dispatch + `gh issue list` observation |
+| — | FR-3 | Item 1 | covered by SC-2 (run step) and SC-1's workflow parse test; checkout-order already enforced by existing test_sc2 |
+| — | NFR-1, NFR-2 | Item 1 | covered by SC-1 (exact image) and existing test_sc3 (permissions unchanged) |
+
+## Edge Cases
+
+- **State file never committed to repo:** the in-run state file update (FR-7/SC-6) lives in the run workspace; repo-persisted state advance is out of scope (script logic unchanged). Subsequent runs rely on the dupe search (`search_issue_exists`) to prevent re-filing — that is why SC-7's live precondition is a dupe-keyed issue already present.
+- **Upstream API returns a non-tag reference:** `is_release_tag()` filters commit-hash references; the run files zero issues regardless of state currency.
+- **Concurrency overlap:** `concurrency.group: upstream-release-watch` (unchanged) pends overlapping triggers rather than cancelling — repeat dispatch during SC-5/SC-7 verification may queue, not race.
+- **`GITHUB_TOKEN` absent in job context:** the script raises immediately (`RuntimeError`); the run fails non-success and SC-4 fails — surfaced, not silent.
+
+## Not Included
+
+- Any change to release-watch script logic, issue-filing behavior, or state-file format
+- Repo-persisted (committed) state-file advancement from the workflow run
+- Container image or permissions changes
+- Changes to `on:`/`concurrency:` scaffolding or the checkout step
+
+## Documentation Sources
+
+| Source | Type | Location | Verification |
+|--------|------|----------|--------------|
+| GitHub Actions workflow syntax — `jobs.<job_id>.container` | official docs | https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#jobsjob_idcontainer | fetched live 2026-09-24 |
+| `gh workflow run` / `gh run view` / `gh issue list` | CLI docs | https://cli.github.com/manual/ | commands available in environment (`gh` authenticated, live-verified) |
+| `.github/workflows/upstream-release-watch.yml` | repository file | repo root | read live 2026-09-24 (step-level `container:`/`entrypoint:` confirmed present) |
+| `test/test_workflow_jobs.py` | repository file | repo root | read live 2026-09-24 (SC-4 test currently asserts the invalid step-level shape — must be rewritten) |
+| `scripts/release-watch.py` | repository file | repo root | read live 2026-09-24 (`run_release_watch()`, `search_issue_exists()`, state-file write confirmed) |
+| HTTP 422 dispatch failure evidence | artifact | `tmp/103/artifacts/phase2-sc5-live-dispatch.yaml` | live dispatch on dev recorded 2026-09-24 |
 
 ## Affected Files
 
 - `.github/workflows/upstream-release-watch.yml`
 - `test/test_workflow_jobs.py`
+
+## Change Control
+
+| Date | Change | Reason | Authorized By |
+|------|--------|--------|---------------|
+| 2026-09-24 | Initial spec written (spec-creation create) | New SPEC-FIX for HTTP 422 parse failure | validation pipeline (approved-for-pr label) |
+| 2026-09-25 | Structural revision: added Alternatives Considered, Requirements (FR/NFR with SHALL), Items with TDD cycles, Dependencies, Traceability, Documentation Sources (4-column table + SC column), all-or-nothing Enforcement Gate statement, per-SC cost frames, Edge Cases, Not Included; decomposed SC-1 into SC-1/SC-2 (job-level present / step-level absent) and SC-4 into SC-5/SC-6/SC-7 (issue-count, state-advance, zero-issues with deterministic preconditions); removed 'Call to action' solicitation from Impact; added Approach Chosen preamble | Validation FAIL findings (1)-(4) | revise task dispatch (remediation of validation findings) |
 
 ---
 🤖 OpenCode (ollama-cloud/glm-5.3-flash) created
